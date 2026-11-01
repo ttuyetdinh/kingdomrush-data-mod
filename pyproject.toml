@@ -21,4 +21,5 @@ pythonpath = ["."]
 asyncio_default_fixture_loop_scope = "function"
 # LuaJIT raises Win64 SEH exceptions for Lua errors; it handles them itself, but
 # faulthandler would dump a bogus "fatal exception" traceback for each one.
-addopts = "-p no:faulthandler"
+addopts = "-p no:faulthandler -p nicegui.testing.user_plugin"
+main_file = "tests/ui_main.py"
