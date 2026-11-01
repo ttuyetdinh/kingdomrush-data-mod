@@ -49,6 +49,10 @@ def test_apply_writes_everything(tmp_game, tree):
     } <= names
     assert (r.applied, r.stale) == (1, [("towers", "gone", 1)])
     assert not list(tmp_game.mods_dir.glob("*.tmp"))
+    assert (tmp_game.mods_dir / "launch_modded.bat").read_bytes() == LAUNCH_BAT.encode("utf-8")
+    src_stats = tmp_game.mod_template_dir / "kr_mod" / "stats.lua"
+    dst_stats = tmp_game.mods_dir / "kr_mod" / "stats.lua"
+    assert dst_stats.read_bytes() == src_stats.read_bytes()
 
 
 def test_data_file_loads_in_lua(tmp_game, tree, lua):
@@ -73,6 +77,10 @@ def test_data_file_loads_in_lua(tmp_game, tree, lua):
 
 def test_live_file(tmp_game):
     write_live(tmp_game, LiveSettings(2, 1.5, 3.0))
+    assert (
+        (tmp_game.mods_dir / "kr_mod_live.lua").read_bytes()
+        == b"return { speed = 2, enemy_mult = 1.5, troop_mult = 3.0 }\n"
+    )
     assert (
         (tmp_game.mods_dir / "kr_mod_live.lua").read_text().strip()
         == "return { speed = 2, enemy_mult = 1.5, troop_mult = 3.0 }"
@@ -116,10 +124,19 @@ def test_atomic_write_retries_and_cleans_on_failure(tmp_path, monkeypatch):
     assert not target.exists()
 
 
-def test_atomic_write_success(tmp_path):
+def test_atomic_write_byte_exact(tmp_path):
     target = tmp_path / "test.txt"
     atomic_write(target, "data")
-    assert target.read_text(encoding="utf-8") == "data"
+    assert target.read_bytes() == b"data"
+
+    target_lf = tmp_path / "lf.txt"
+    atomic_write(target_lf, "line1\nline2\n")
+    assert target_lf.read_bytes() == b"line1\nline2\n"
+
+    target_crlf = tmp_path / "crlf.txt"
+    atomic_write(target_crlf, "line1\r\nline2\r\n")
+    assert target_crlf.read_bytes() == b"line1\r\nline2\r\n"
+
     assert not list(tmp_path.glob("*.tmp"))
 
 
@@ -132,13 +149,13 @@ def test_launch_bat_constant():
 def test_apply_mod_copies_dynamically_added_template_modules(tmp_game, tree, tmp_path):
     custom_template = tmp_path / "custom_template"
     custom_template.mkdir()
-    (custom_template / "kr_mod.lua").write_text("-- main")
+    (custom_template / "kr_mod.lua").write_text("-- main\n", encoding="utf-8")
     mod_sub = custom_template / "kr_mod"
     mod_sub.mkdir()
-    (mod_sub / "stats.lua").write_text("-- stats")
-    (mod_sub / "live.lua").write_text("-- live")
+    (mod_sub / "stats.lua").write_text("-- stats\n", encoding="utf-8")
+    (mod_sub / "live.lua").write_text("-- live\n", encoding="utf-8")
     (mod_sub / "nested").mkdir()
-    (mod_sub / "nested" / "extra.lua").write_text("-- extra")
+    (mod_sub / "nested" / "extra.lua").write_text("-- extra\n", encoding="utf-8")
 
     game = dataclasses.replace(tmp_game, mod_template_dir=custom_template)
     r = apply_mod(game, Profile(name="T", changes={}, live=LiveSettings()), tree)
@@ -147,4 +164,4 @@ def test_apply_mod_copies_dynamically_added_template_modules(tmp_game, tree, tmp
     assert "kr_mod/stats.lua" in rel_names
     assert "kr_mod/live.lua" in rel_names
     assert "kr_mod/nested/extra.lua" in rel_names
-    assert (game.mods_dir / "kr_mod" / "nested" / "extra.lua").read_text() == "-- extra"
+    assert (game.mods_dir / "kr_mod" / "nested" / "extra.lua").read_text() == "-- extra\n"

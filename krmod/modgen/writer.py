@@ -24,7 +24,7 @@ LAUNCH_BAT = (
 )
 
 
-def atomic_write(path: Path, text: str, retries: int = 5) -> None:
+def atomic_write(path: Path, text: str | bytes, retries: int = 5) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
@@ -32,10 +32,16 @@ def atomic_write(path: Path, text: str, retries: int = 5) -> None:
     )
     tmp_path = Path(tmp_name)
     try:
-        with open(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-            f.flush()
-            os.fsync(f.fileno())
+        if isinstance(text, bytes):
+            with open(fd, "wb") as f:
+                f.write(text)
+                f.flush()
+                os.fsync(f.fileno())
+        else:
+            with open(fd, "w", encoding="utf-8", newline="") as f:
+                f.write(text)
+                f.flush()
+                os.fsync(f.fileno())
 
         attempts = max(1, retries)
         for attempt in range(attempts):
@@ -115,7 +121,7 @@ def apply_mod(
             if src.is_file():
                 rel = src.relative_to(template_dir)
                 dest = paths.mods_dir / rel
-                atomic_write(dest, src.read_text(encoding="utf-8"))
+                atomic_write(dest, src.read_bytes())
                 written.append(dest)
 
     dt = data_table(profile, tree)
