@@ -10,6 +10,7 @@ UI_TABS: tuple[str, ...] = (
 )
 from krmod.profiles import ProfileError, slug
 from krmod.state import AppState
+from krmod.ui import gamefolder
 from krmod.ui.sliders import live_slider
 
 
@@ -19,10 +20,12 @@ class TopBar:
         state: AppState,
         on_tab_change: Callable[[str], None],
         on_profile_change: Callable[[], None],
+        on_game_dir: Callable[[str], bool],
     ) -> None:
         self.state = state
         self.on_tab_change = on_tab_change
         self.on_profile_change = on_profile_change
+        self.on_game_dir = on_game_dir
 
         self.self_check_label: ui.label
         self.warning_chip: ui.chip
@@ -116,6 +119,10 @@ class TopBar:
                     "text-xs text-slate-300 font-mono px-2 py-1 bg-slate-800 rounded"
                 )
 
+                ui.button(icon="folder_open", on_click=self._open_game_dialog).props(
+                    "flat dense round text-color=white"
+                ).mark("game-folder").tooltip(f"Game folder: {self.state.paths.game_dir}")
+
                 self.profile_button = ui.button(
                     self.state.profile.name, icon="arrow_drop_down"
                 ).props("flat dense no-caps text-color=white").mark("profile-menu")
@@ -174,6 +181,22 @@ class TopBar:
             ui.notify(str(exc), color="negative")
 
     def _build_dialogs(self) -> None:
+        # Game folder dialog
+        with ui.dialog() as self.game_dialog, ui.card().classes("p-4 min-w-[440px] gap-2"):
+            ui.label("Game folder").classes("text-lg font-bold")
+            ui.label(str(self.state.paths.game_dir)).classes(
+                "text-xs text-slate-600 font-mono break-all"
+            ).mark("game-dir-current")
+            note = gamefolder.env_override_note()
+            if note:
+                ui.label(note).classes("text-xs text-amber-700")
+            ui.label("Choose another folder with Kingdom Rush Genesis.exe. Your profiles and changes stay.").classes(
+                "text-xs text-slate-500"
+            )
+            gamefolder.render_chooser(str(self.state.paths.game_dir), self._do_game_dir)
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Close", on_click=self.game_dialog.close).props("flat dense")
+
         # New profile dialog
         with ui.dialog() as self.new_dialog, ui.card().classes("p-4 min-w-[340px]"):
             ui.label("New Profile").classes("text-lg font-bold mb-2")
@@ -213,6 +236,13 @@ class TopBar:
             with ui.row().classes("w-full justify-end gap-2 mt-4"):
                 ui.button("Cancel", on_click=self.del_dialog.close).props("flat dense")
                 ui.button("Delete", on_click=self._do_delete_profile).props("unelevated dense color=negative").mark("btn-delete")
+
+    def _open_game_dialog(self) -> None:
+        self.game_dialog.open()
+
+    def _do_game_dir(self, text: str) -> None:
+        if self.on_game_dir(text):
+            self.game_dialog.close()
 
     def _open_new_dialog(self) -> None:
         self.new_name_input.value = ""

@@ -100,9 +100,9 @@ def _file_name(card_id: str) -> str:
     return card_id.replace("/", "__") + ".png"
 
 
-def portrait_for(card_id: str, cache_dir: Path) -> Path | None:
-    """Cached portrait for a card id, or None when there is none."""
-    path = Path(cache_dir) / "portraits" / _file_name(card_id)
+def portrait_for(card_id: str, portraits_dir: Path) -> Path | None:
+    """Cached portrait for a card id (see GamePaths.portraits_dir), or None when there is none."""
+    path = Path(portraits_dir) / _file_name(card_id)
     return path if path.is_file() else None
 
 
@@ -185,13 +185,13 @@ def _read_all_frames(paths: GamePaths, exe: zipfile.ZipFile) -> dict[str, dict[s
 
 
 def build_portrait_cache(paths: GamePaths) -> int:
-    """Write every missing portrait PNG under <cache_dir>/portraits; return how many were written.
+    """Write every missing portrait PNG under paths.portraits_dir; return how many were written.
 
     Existing files are kept, so repeated starts only read the exe when something is missing.
     Best effort and never raises (it runs in a background thread): an unreadable exe,
     descriptor, atlas or frame leaves only the affected cards without a portrait.
     """
-    out_dir = Path(paths.cache_dir) / "portraits"
+    out_dir = paths.portraits_dir
     written = 0
     try:
         with zipfile.ZipFile(paths.exe) as exe:

@@ -20,6 +20,14 @@ All user configurations are stored locally inside the repository folder:
 - Each profile stores only edited values relative to the original game balance.
 - NiceGUI and webview storage are kept inside the cache folder, ensuring nothing is written to AppData or LocalAppData.
 
+## Choosing the Game Folder
+
+By default the app looks for the game in the folder that contains the kingdomrush-data-mod folder. To use another folder, click the folder icon in the top bar (the tooltip shows the current folder) and choose the folder that contains Kingdom Rush Genesis.exe and lua51.dll. If the game is not found at startup, the error page offers the same choice. Your profiles and changes are kept when you switch.
+
+The choice is saved in settings.json inside the app folder, never in AppData. The game folder is picked in this order: the KRMOD_GAME_DIR environment variable (for development and tests), then the saved choice, then the default above. Delete settings.json to go back to the default. Only the mods folder of the chosen game folder is ever written.
+
+Portrait images are cached per game folder under cache\portraits.
+
 ## First-Time Setup
 
 To set up the development environment, create a virtual environment using 64-bit Python 3.12 and install the package with development dependencies in editable mode:

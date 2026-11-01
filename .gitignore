@@ -12,6 +12,7 @@ dist/
 # Owner data and generated caches
 profiles/
 cache/
+settings.json
 
 # Brainstorm companion files
 .superpowers/
