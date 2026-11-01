@@ -185,7 +185,17 @@ function M.install(K, ctx)
           local ok_w, val_w = pcall(g.getWidth)
           if ok_w and type(val_w) == "number" then w = val_w end
         end
-        local x = w - 80
+        local text_width = 40
+        if type(g.getFont) == "function" then
+          local ok_f, font = pcall(g.getFont)
+          if ok_f and (type(font) == "table" or type(font) == "userdata") and type(font.getWidth) == "function" then
+            local ok_tw, tw = pcall(font.getWidth, font, text)
+            if ok_tw and type(tw) == "number" then
+              text_width = tw
+            end
+          end
+        end
+        local x = (w - text_width) / 2
         local y = 12
         local r, gr, b, a
         if type(g.getColor) == "function" then

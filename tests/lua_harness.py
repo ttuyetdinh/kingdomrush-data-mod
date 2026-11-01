@@ -21,18 +21,21 @@ WAITS = {}
 SPAWN_CMDS = {}
 RESULT = nil
 F_BOSS = 0x10000
+LAST_PRINT_X = nil
+LAST_PRINT_Y = nil
 
 love = {
   filesystem = { getSourceBaseDirectory = function() return GAME_DIR end },
   timer = { getTime = function() return NOW end },
   graphics = {
-    print = function(text) table.insert(PRINTS, text) end,
+    print = function(text, x, y) table.insert(PRINTS, text); LAST_PRINT_X = x; LAST_PRINT_Y = y end,
     getColor = function() return 1, 1, 1, 1 end,
     setColor = function() end,
     push = function() end,
     pop = function() end,
     origin = function() end,
     getWidth = function() return 1920 end,
+    getFont = function() return { getWidth = function(self, t) return 40 end } end,
   },
   getVersion = function() return 11, 4, 0 end,
 }
