@@ -226,3 +226,113 @@ def test_stale_enum_and_non_numeric(tree):
     str_leaf = next(leaf for leaf in tree.leaves.values() if leaf.kind == "str")
     p = Profile("x", changes={enum_leaf.path: 1, str_leaf.path: 1})
     assert stale_changes(p, tree) == [enum_leaf.path, str_leaf.path]
+
+
+def _write_profile_json(path, **over):
+    data = {"version": 1, "name": "X", "changes": []}
+    data.update(over)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_corrupt_default_only(tmp_path):
+    (tmp_path / "default.json").write_text("{nope")
+    s = ProfileStore(tmp_path)
+    assert s.names() == ["Default"] and s.active().name == "Default"
+    assert "default.json" in s.load_warnings[0]
+    assert (tmp_path / "default.json").read_text() == "{nope"  # user's file untouched
+    s2 = ProfileStore(tmp_path)
+    assert s2.names() == ["Default"] and s2.active().name == "Default"
+
+
+def test_delete_last_with_corrupt_default_present(tmp_path):
+    _write_profile_json(tmp_path / "easy.json", name="Easy")
+    (tmp_path / "default.json").write_text("{nope")
+    s = ProfileStore(tmp_path)
+    assert s.names() == ["Easy"]
+    s.switch("Easy")
+    s.delete("Easy")
+    assert s.names() == ["Default"] and s.active().name == "Default"
+    assert not (tmp_path / "easy.json").exists()
+    s2 = ProfileStore(tmp_path)
+    assert s2.names() == ["Default"] and s2.active().name == "Default"
+
+
+@pytest.mark.parametrize(
+    "bad_path", [[["a"], 1], [{"a": 1}], [None], [True], [1.5], []]
+)
+def test_bad_path_shapes_skipped(tmp_path, bad_path):
+    _write_profile_json(tmp_path / "bad.json", changes=[{"path": bad_path, "value": 1}])
+    s = ProfileStore(tmp_path)
+    assert "bad.json" in s.load_warnings[0] and s.names() == ["Default"]
+
+
+def test_huge_int_value_skipped(tmp_path):
+    (tmp_path / "huge.json").write_text(
+        '{"version": 1, "name": "Huge", "changes": [{"path": ["a"], "value": 1' + "0" * 400 + "}]}"
+    )
+    s = ProfileStore(tmp_path)
+    assert "huge.json" in s.load_warnings[0] and s.names() == ["Default"]
+
+
+def test_huge_int_mult_skipped(tmp_path):
+    (tmp_path / "huge.json").write_text(
+        '{"version": 1, "name": "Huge", "live": {"enemy_mult": 1' + "0" * 400 + "}}"
+    )
+    s = ProfileStore(tmp_path)
+    assert "huge.json" in s.load_warnings[0] and s.names() == ["Default"]
+    with pytest.raises(ProfileError):
+        LiveSettings(troop_mult=10**400).validate()
+
+
+def test_speed_keys_must_be_love_names():
+    assert validate_speed_keys(["a", "-", "kp1"]) == ("a", "-", "kp1")
+    assert validate_speed_keys(["F5", "pageup", "`"]) == ("f5", "pageup", "`")
+    for bad in (["banana", "f6", "f7"], ["ctrl+f5", "f6", "f7"], ["f5", "f6", "f20"], ["f5", "f6", ""]):
+        with pytest.raises(ProfileError):
+            validate_speed_keys(bad)
+
+
+def _locked_unlink(monkeypatch, target_name):
+    from pathlib import Path
+
+    real = Path.unlink
+
+    def fake(self, *a, **kw):
+        if self.name == target_name:
+            raise PermissionError("locked")
+        return real(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "unlink", fake)
+
+
+def test_delete_unlink_failure_keeps_profile(tmp_path, monkeypatch):
+    s = ProfileStore(tmp_path)
+    s.create("Easy")
+    _locked_unlink(monkeypatch, "easy.json")
+    with pytest.raises(ProfileError):
+        s.delete("Easy")
+    assert s.names() == ["Default", "Easy"]
+    assert ProfileStore(tmp_path).names() == ["Default", "Easy"]
+
+
+def test_delete_last_unlink_failure_leaves_store_intact(tmp_path, monkeypatch):
+    _write_profile_json(tmp_path / "easy.json", name="Easy")
+    s = ProfileStore(tmp_path)
+    s.create("Other")
+    s.delete("Other")
+    _locked_unlink(monkeypatch, "easy.json")
+    with pytest.raises(ProfileError):
+        s.delete("Easy")
+    assert s.names() == ["Easy"] and s.active().name == "Easy"
+    assert sorted(f.name for f in tmp_path.glob("*.json")) == ["_active.json", "easy.json"]
+
+
+def test_rename_unlink_failure_keeps_old_name(tmp_path, monkeypatch):
+    s = ProfileStore(tmp_path)
+    s.create("Easy")
+    _locked_unlink(monkeypatch, "easy.json")
+    with pytest.raises(ProfileError):
+        s.rename("Easy", "Casual")
+    assert s.names() == ["Default", "Easy"]
+    assert not (tmp_path / "casual.json").exists()
+    assert ProfileStore(tmp_path).names() == ["Default", "Easy"]

@@ -30,6 +30,15 @@ def _is_number(x: object) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool)
 
 
+def _is_finite_number(x: object) -> bool:
+    if not _is_number(x):
+        return False
+    try:
+        return math.isfinite(x)
+    except OverflowError:
+        return False
+
+
 @dataclass
 class LiveSettings:
     speed: int = 1
@@ -40,7 +49,7 @@ class LiveSettings:
         if isinstance(self.speed, bool) or not isinstance(self.speed, int) or self.speed not in (1, 2, 3):
             raise ProfileError(f"speed must be 1, 2 or 3, got {self.speed!r}")
         for label, mult in (("enemy_mult", self.enemy_mult), ("troop_mult", self.troop_mult)):
-            if not _is_number(mult) or not math.isfinite(mult):
+            if not _is_finite_number(mult):
                 raise ProfileError(f"{label} must be a number, got {mult!r}")
             if not 0.5 <= mult <= 3:
                 raise ProfileError(f"{label} must be between 0.5 and 3, got {mult!r}")
@@ -48,14 +57,35 @@ class LiveSettings:
                 raise ProfileError(f"{label} must be a multiple of 0.25, got {mult!r}")
 
 
+# LOVE 11 KeyConstant names (love.keyboard.isDown / love.keypressed).
+LOVE_KEYS = frozenset(
+    set("abcdefghijklmnopqrstuvwxyz0123456789")
+    | set("!\"#$&'()*+,-./:;<=>?@[\\]^_`")
+    | {f"kp{d}" for d in range(10)}
+    | {f"f{n}" for n in range(1, 20)}
+    | {
+        "space", "kp.", "kp,", "kp/", "kp*", "kp-", "kp+", "kpenter", "kp=",
+        "up", "down", "right", "left", "home", "end", "pageup", "pagedown",
+        "insert", "backspace", "tab", "clear", "return", "delete",
+        "numlock", "capslock", "scrolllock",
+        "rshift", "lshift", "rctrl", "lctrl", "ralt", "lalt", "rgui", "lgui", "mode",
+        "www", "mail", "calculator", "computer", "appsearch", "apphome", "appback",
+        "appforward", "apprefresh", "appbookmarks", "currencyunit", "undo",
+        "application", "power", "menu", "help", "sysreq", "pause", "escape",
+    }
+)
+
+
 def validate_speed_keys(keys: Sequence[str]) -> tuple[str, str, str]:
     if isinstance(keys, str) or len(keys) != 3:
         raise ProfileError("exactly 3 speed keys are required")
     out: list[str] = []
     for key in keys:
-        if not isinstance(key, str) or not key.strip():
+        if not isinstance(key, str):
             raise ProfileError(f"invalid key name {key!r}")
         norm = key.strip().lower()
+        if norm not in LOVE_KEYS:
+            raise ProfileError(f"{key!r} is not a LOVE key name")
         if norm in FORBIDDEN_KEYS:
             raise ProfileError(f"key {norm!r} is reserved and cannot be a speed key")
         out.append(norm)
@@ -100,7 +130,7 @@ def _validate_profile(profile: Profile) -> None:
             isinstance(seg, (str, int)) and not isinstance(seg, bool) for seg in path
         ):
             raise ProfileError(f"invalid change path {path!r}")
-        if not _is_number(value) or not math.isfinite(value):
+        if not _is_finite_number(value):
             raise ProfileError(f"invalid change value for {path!r}: {value!r}")
 
 
@@ -134,7 +164,12 @@ def _from_json(data: object) -> Profile:
     for entry in raw_changes:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), list):
             raise ProfileError("malformed change entry")
-        changes[tuple(entry["path"])] = entry.get("value")
+        segments = entry["path"]
+        if not segments or not all(
+            isinstance(seg, (str, int)) and not isinstance(seg, bool) for seg in segments
+        ):
+            raise ProfileError(f"invalid change path {segments!r}")
+        changes[tuple(segments)] = entry.get("value")
     rules = data.get("rules", {})
     live = data.get("live", {})
     if not isinstance(rules, dict) or not isinstance(live, dict):
@@ -156,6 +191,22 @@ def _from_json(data: object) -> Profile:
     )
     _validate_profile(profile)
     return profile
+
+
+def _unlink(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise ProfileError(f"cannot remove {path.name}: {exc}") from exc
+
+
+def _unlink_quiet(path: Path) -> None:
+    try:
+        path.unlink()
+    except OSError:
+        pass
 
 
 def _atomic_write_json(path: Path, data: object) -> None:
@@ -201,7 +252,7 @@ class ProfileStore:
             self._profiles[key] = profile
             self._files[key] = path
         if not self._profiles:
-            self._add(Profile(_DEFAULT_NAME))
+            self._add_default()
         wanted = self._read_active_name()
         if wanted is not None and wanted.lower() in self._profiles:
             self._active_key = wanted.lower()
@@ -245,6 +296,21 @@ class ProfileStore:
             raise ProfileError(f"a file for {name!r} already exists: {path.name}")
         return name, path
 
+    def _free_path(self, slug: str, reuse: Path | None = None) -> Path:
+        n = 1
+        while True:
+            path = self.dir / (f"{slug}.json" if n == 1 else f"{slug}-{n}.json")
+            if path == reuse or not path.exists():
+                return path
+            n += 1
+
+    def _add_default(self) -> None:
+        profile = Profile(_DEFAULT_NAME)
+        path = self._free_path(_slug(_DEFAULT_NAME))
+        _atomic_write_json(path, _to_json(profile))
+        self._profiles[_DEFAULT_NAME.lower()] = profile
+        self._files[_DEFAULT_NAME.lower()] = path
+
     def _add(self, profile: Profile) -> Profile:
         name, path = self._check_new(profile.name)
         profile.name = name
@@ -286,9 +352,10 @@ class ProfileStore:
         _atomic_write_json(path, _to_json(updated))
         if old_path != path:
             try:
-                old_path.unlink()
-            except OSError:
-                pass
+                _unlink(old_path)
+            except ProfileError:
+                _unlink_quiet(path)
+                raise
         profile.name = name
         del self._profiles[key], self._files[key]
         self._profiles[name.lower()] = profile
@@ -301,14 +368,24 @@ class ProfileStore:
         key = self._key(name)
         was_active = key == self._active_key
         path = self._files[key]
+        recreate = len(self._profiles) == 1
+        if recreate:
+            # Write the replacement Default first so a failure leaves the store intact.
+            new_path = self._free_path(_slug(_DEFAULT_NAME), reuse=path)
+            _atomic_write_json(new_path, _to_json(Profile(_DEFAULT_NAME)))
+            if new_path != path:
+                try:
+                    _unlink(path)
+                except ProfileError:
+                    _unlink_quiet(new_path)
+                    raise
+        else:
+            _unlink(path)
         del self._profiles[key], self._files[key]
-        try:
-            path.unlink()
-        except OSError:
-            pass
-        if not self._profiles:
-            self._add(Profile(_DEFAULT_NAME))
-        if was_active or not self._active_key or self._active_key not in self._profiles:
+        if recreate:
+            self._profiles[_DEFAULT_NAME.lower()] = Profile(_DEFAULT_NAME)
+            self._files[_DEFAULT_NAME.lower()] = new_path
+        if was_active or self._active_key not in self._profiles:
             self._active_key = self._sorted_keys()[0]
             self._write_active()
 
