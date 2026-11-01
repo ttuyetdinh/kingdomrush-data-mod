@@ -135,6 +135,8 @@ async def test_profile_duplicate_and_rename(user):
     user.find("Duplicate").click()
     user.find(marker="btn-duplicate").click()
     await user.should_see("Default (copy)")
+    user.find(marker="profile-menu").click()
+    await user.should_see(marker="profile-item-default-copy")
 
 
 async def test_profile_error_shown_inline(user):

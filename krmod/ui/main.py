@@ -5,7 +5,7 @@ from nicegui import ui
 
 from krmod.assets.portraits import portrait_for
 from krmod.state import AppState
-from krmod.ui import table
+from krmod.ui import applybar, rules, table
 from krmod.ui.cards import CardsColumn
 from krmod.ui.topbar import TopBar
 
@@ -18,6 +18,7 @@ _current_error: str | None = None
 _topbar: TopBar | None = None
 _cards_col: CardsColumn | None = None
 _active_card_id: str | None = None
+_current_tab: str = "Towers"
 
 
 def show_card(card_id: str) -> None:
@@ -52,7 +53,12 @@ def refresh() -> None:
         _topbar.refresh()
     if _cards_col is not None:
         _cards_col.refresh()
-
+    if _current_tab == "Rules" and _active_state is not None:
+        right = REGIONS.get("right")
+        if right is not None:
+            right.clear()
+            with right:
+                rules.render(_active_state)
 
 def _render_error(error_msg: str) -> None:
     with ui.column().classes("w-full h-screen items-center justify-center p-8 bg-slate-900 text-white gap-4"):
@@ -77,9 +83,27 @@ def _render_shell(state: AppState) -> None:
     )
 
     def on_tab_change(tab: str) -> None:
+        global _current_tab
+        _current_tab = tab
         if _cards_col is not None:
             _cards_col.set_tab(tab)
 
+        right = REGIONS.get("right")
+        if right is None or _active_state is None:
+            return
+
+        if tab == "Rules":
+            right.clear()
+            with right:
+                rules.render(_active_state)
+        elif _active_card_id is not None:
+            show_card(_active_card_id)
+        else:
+            right.clear()
+            with right:
+                ui.label("Select a unit on the left to edit stats").classes(
+                    "text-slate-400 italic mt-4"
+                )
     def on_profile_change() -> None:
         refresh()
         if _active_card_id is not None:
@@ -106,6 +130,8 @@ def _render_shell(state: AppState) -> None:
     # Bottom bar container
     bottom_bar = ui.row().classes("w-full items-center justify-between px-6 py-2 border-t border-slate-200 bg-slate-50 shrink-0")
     REGIONS["bottom"] = bottom_bar
+    with bottom_bar:
+        applybar.render(state)
 
 
 def _render_page(state: AppState | None, error: str | None) -> None:

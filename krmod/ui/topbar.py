@@ -1,7 +1,8 @@
 """Top bar component: app title, tabs, self-check, profile selector and change count."""
 from __future__ import annotations
 
-from typing import Callable
+import re
+from typing import Any, Callable
 
 from nicegui import ui
 
@@ -30,7 +31,11 @@ class TopBar:
         self.profile_menu: ui.menu
         self.topbar_right: ui.row
         self.tabs_el: ui.tabs
-
+        self.speed_buttons: dict[int, ui.button] = {}
+        self.enemy_slider: ui.slider
+        self.enemy_label: ui.label
+        self.troop_slider: ui.slider
+        self.troop_label: ui.label
         self._build()
 
     def _build(self) -> None:
@@ -64,8 +69,91 @@ class TopBar:
                     ui.tab(tab)
 
             # Right section: Change count, profile dropdown, and placeholder for Task 13
+            # Right section: Live controls, change count, profile dropdown
             self.topbar_right = ui.row().classes("items-center gap-3")
             with self.topbar_right:
+                # Speed buttons
+                with ui.row().classes("items-center bg-slate-800 rounded p-0.5 gap-0.5"):
+                    for s in (1, 2, 3):
+                        btn = (
+                            ui.button(
+                                f"×{s}",
+                                on_click=lambda sp=s: self._set_speed(sp),
+                            )
+                            .props("dense no-caps")
+                            .mark(f"speed-{s}")
+                        )
+                        self.speed_buttons[s] = btn
+                self._update_speed_buttons()
+
+                # Enemy multiplier slider
+                e_val = self.state.profile.live.enemy_mult
+                with ui.row().classes("items-center gap-1"):
+                    self.enemy_label = ui.label(f"Enemies {e_val:g}x").classes(
+                        "text-xs text-slate-300 font-mono whitespace-nowrap"
+                    )
+                    self.enemy_slider = (
+                        ui.slider(min=0.5, max=3.0, step=0.25, value=e_val)
+                        .classes("w-20")
+                        .mark("enemy-mult")
+                    )
+
+                    def on_enemy_change(e: Any) -> None:
+                        raw = (
+                            e.args
+                            if (e.args is not None and isinstance(e.args, (int, float)))
+                            else self.enemy_slider.value
+                        )
+                        val = float(raw if raw is not None else 1.0)
+                        try:
+                            self.state.set_live(enemy_mult=val)
+                            self.enemy_label.text = f"Enemies {val:g}x"
+                            from krmod.ui import main as ui_main
+
+                            ui_main.refresh()
+                        except ProfileError as exc:
+                            ui.notify(str(exc), color="negative")
+                            self.enemy_slider.value = self.state.profile.live.enemy_mult
+                            self.enemy_label.text = (
+                                f"Enemies {self.state.profile.live.enemy_mult:g}x"
+                            )
+
+                    self.enemy_slider.on("change", on_enemy_change)
+
+                # Troop multiplier slider
+                t_val = self.state.profile.live.troop_mult
+                with ui.row().classes("items-center gap-1"):
+                    self.troop_label = ui.label(f"Troops {t_val:g}x").classes(
+                        "text-xs text-slate-300 font-mono whitespace-nowrap"
+                    )
+                    self.troop_slider = (
+                        ui.slider(min=0.5, max=3.0, step=0.25, value=t_val)
+                        .classes("w-20")
+                        .mark("troop-mult")
+                    )
+
+                    def on_troop_change(e: Any) -> None:
+                        raw = (
+                            e.args
+                            if (e.args is not None and isinstance(e.args, (int, float)))
+                            else self.troop_slider.value
+                        )
+                        val = float(raw if raw is not None else 1.0)
+                        try:
+                            self.state.set_live(troop_mult=val)
+                            self.troop_label.text = f"Troops {val:g}x"
+                            from krmod.ui import main as ui_main
+
+                            ui_main.refresh()
+                        except ProfileError as exc:
+                            ui.notify(str(exc), color="negative")
+                            self.troop_slider.value = self.state.profile.live.troop_mult
+                            self.troop_label.text = (
+                                f"Troops {self.state.profile.live.troop_mult:g}x"
+                            )
+
+                    self.troop_slider.on("change", on_troop_change)
+
                 self.change_label = ui.label(self._change_text()).classes(
                     "text-xs text-slate-300 font-mono px-2 py-1 bg-slate-800 rounded"
                 )
@@ -77,7 +165,6 @@ class TopBar:
                 with self.profile_button:
                     self.profile_menu = ui.menu().classes("min-w-[180px]")
                     self._build_profile_menu()
-
         self._build_dialogs()
 
     def _change_text(self) -> str:
@@ -106,10 +193,11 @@ class TopBar:
             # List existing profiles
             for name in self.state.profile_names():
                 is_active = name == self.state.profile.name
+                slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "profile"
                 item = ui.menu_item(
                     name,
                     on_click=lambda n=name: self._switch_profile(n),
-                ).mark(f"profile-item-{name} {name}")
+                ).mark(f"profile-item-{slug}")
                 if is_active:
                     item.props("active")
 
@@ -245,3 +333,34 @@ class TopBar:
         self.change_label.text = self._change_text()
         self.profile_button.text = self.state.profile.name
         self._build_profile_menu()
+        self._update_speed_buttons()
+        e_val = self.state.profile.live.enemy_mult
+        self.enemy_slider.value = e_val
+        self.enemy_label.text = f"Enemies {e_val:g}x"
+        t_val = self.state.profile.live.troop_mult
+        self.troop_slider.value = t_val
+        self.troop_label.text = f"Troops {t_val:g}x"
+
+    def _update_speed_buttons(self) -> None:
+        curr_speed = self.state.profile.live.speed
+        for s, btn in self.speed_buttons.items():
+            if s == curr_speed:
+                btn.props(
+                    remove="flat text-color=slate-400",
+                    add="unelevated color=primary text-color=white",
+                )
+            else:
+                btn.props(
+                    remove="unelevated color=primary text-color=white",
+                    add="flat text-color=slate-400",
+                )
+
+    def _set_speed(self, speed: int) -> None:
+        try:
+            self.state.set_live(speed=speed)
+            self._update_speed_buttons()
+            from krmod.ui import main as ui_main
+
+            ui_main.refresh()
+        except ProfileError as exc:
+            ui.notify(str(exc), color="negative")
