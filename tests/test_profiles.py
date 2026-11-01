@@ -1,0 +1,228 @@
+import json
+import os
+
+import pytest
+
+from krmod.profiles import (
+    LiveSettings,
+    Profile,
+    ProfileError,
+    ProfileStore,
+    stale_changes,
+    validate_speed_keys,
+)
+
+
+def test_first_run_creates_default(tmp_path):
+    s = ProfileStore(tmp_path)
+    assert s.names() == ["Default"] and s.active().name == "Default"
+
+
+def test_round_trip_keeps_int_segments(tmp_path):
+    s = ProfileStore(tmp_path)
+    p = s.active()
+    p.changes[("towers", "archers", "price", 1)] = 7
+    s.save(p)
+    reloaded = ProfileStore(tmp_path).active().changes
+    assert reloaded == {("towers", "archers", "price", 1): 7}
+    (key,) = reloaded
+    assert isinstance(key[3], int) and isinstance(reloaded[key], int)
+
+
+def test_json_format(tmp_path):
+    s = ProfileStore(tmp_path)
+    p = s.create("Easy mode")
+    p.changes[("towers", "archers", "price", 1)] = 7
+    p.unlock_tower_levels = True
+    s.save(p)
+    data = json.loads((tmp_path / "easy-mode.json").read_text(encoding="utf-8"))
+    assert data == {
+        "version": 1,
+        "name": "Easy mode",
+        "changes": [{"path": ["towers", "archers", "price", 1], "value": 7}],
+        "rules": {"unlock_tower_levels": True},
+        "live": {"speed": 1, "enemy_mult": 1.0, "troop_mult": 1.0},
+        "speed_keys": ["f5", "f6", "f7"],
+    }
+
+
+def test_create_duplicate_rename_switch(tmp_path):
+    s = ProfileStore(tmp_path)
+    s.create("Easy")
+    s.duplicate("Easy", "Hard")
+    s.rename("Hard", "Brutal")
+    s.switch("Brutal")
+    assert ProfileStore(tmp_path).active().name == "Brutal"
+    with pytest.raises(ProfileError):
+        s.create("easy")
+    with pytest.raises(ProfileError):
+        s.create("  ")
+
+
+def test_duplicate_copies_content_independently(tmp_path):
+    s = ProfileStore(tmp_path)
+    src = s.create("A")
+    src.changes[("x", 1)] = 2.5
+    src.live = LiveSettings(2, 1.5, 0.5)
+    s.save(src)
+    dup = s.duplicate("A", "B")
+    assert dup.changes == src.changes and dup.live == src.live
+    dup.changes[("x", 1)] = 9
+    assert src.changes[("x", 1)] == 2.5
+
+
+def test_rename_moves_file_and_keeps_active(tmp_path):
+    s = ProfileStore(tmp_path)
+    s.create("Easy")
+    s.switch("Easy")
+    s.rename("Easy", "Casual")
+    assert (tmp_path / "casual.json").exists() and not (tmp_path / "easy.json").exists()
+    s2 = ProfileStore(tmp_path)
+    assert s2.active().name == "Casual" and s2.names() == ["Casual", "Default"]
+
+
+def test_rename_collision_rejected(tmp_path):
+    s = ProfileStore(tmp_path)
+    s.create("A")
+    with pytest.raises(ProfileError):
+        s.rename("A", "default")
+    s.rename("A", "a")  # case-only change of itself is fine
+    assert "a" in s.names()
+
+
+def test_slug_collision_rejected(tmp_path):
+    s = ProfileStore(tmp_path)
+    s.create("a b")
+    with pytest.raises(ProfileError):
+        s.create("a-b")
+    assert s.names() == ["a b", "Default"]
+
+
+def test_delete_active_and_last(tmp_path):
+    s = ProfileStore(tmp_path)
+    s.create("Easy")
+    s.switch("Easy")
+    s.delete("Easy")
+    assert s.active().name == "Default"
+    s.delete("Default")
+    assert s.names() == ["Default"]
+    assert ProfileStore(tmp_path).active().name == "Default"
+
+
+def test_delete_active_switches_to_first_remaining(tmp_path):
+    s = ProfileStore(tmp_path)
+    s.create("Beta")
+    s.create("Alpha")
+    s.switch("Default")
+    s.delete("Default")
+    assert s.active().name == "Alpha"
+    assert ProfileStore(tmp_path).active().name == "Alpha"
+
+
+def test_corrupt_profile_skipped(tmp_path):
+    (tmp_path / "broken.json").write_text("{nope")
+    s = ProfileStore(tmp_path)
+    assert "broken.json" in s.load_warnings[0] and s.active().name == "Default"
+
+
+def test_invalid_content_skipped(tmp_path):
+    (tmp_path / "bad.json").write_text(
+        json.dumps({"version": 1, "name": "Bad", "changes": [{"path": ["a"], "value": "x"}]})
+    )
+    s = ProfileStore(tmp_path)
+    assert "bad.json" in s.load_warnings[0] and "Bad" not in s.names()
+
+
+def test_active_file_is_not_a_profile(tmp_path):
+    s = ProfileStore(tmp_path)
+    s.create("Easy")
+    s.switch("Easy")
+    s2 = ProfileStore(tmp_path)
+    assert s2.load_warnings == [] and s2.names() == ["Default", "Easy"]
+
+
+def test_unknown_active_falls_back(tmp_path):
+    ProfileStore(tmp_path)
+    (tmp_path / "_active.json").write_text(json.dumps({"active": "Nope"}))
+    assert ProfileStore(tmp_path).active().name == "Default"
+
+
+def test_unknown_profile_errors(tmp_path):
+    s = ProfileStore(tmp_path)
+    for call in (lambda: s.switch("x"), lambda: s.delete("x"), lambda: s.rename("x", "y")):
+        with pytest.raises(ProfileError):
+            call()
+
+
+def test_atomic_save_uses_replace_and_leaves_no_temp(tmp_path, monkeypatch):
+    s = ProfileStore(tmp_path)
+    calls = []
+    real = os.replace
+    monkeypatch.setattr(os, "replace", lambda a, b: (calls.append((a, b)), real(a, b))[1])
+    p = s.active()
+    p.changes[("a", 1)] = 3
+    s.save(p)
+    assert calls and calls[0][1] == tmp_path / "default.json"
+    assert os.path.dirname(calls[0][0]) == str(tmp_path)
+    assert sorted(f.name for f in tmp_path.iterdir()) == ["_active.json", "default.json"]
+
+
+def test_failed_save_keeps_old_file(tmp_path, monkeypatch):
+    s = ProfileStore(tmp_path)
+    p = s.active()
+    p.changes[("a", 1)] = 3
+    s.save(p)
+    before = (tmp_path / "default.json").read_text()
+    p.changes[("a", 1)] = 4
+    monkeypatch.setattr(os, "replace", lambda a, b: (_ for _ in ()).throw(OSError("boom")))
+    with pytest.raises(OSError):
+        s.save(p)
+    assert (tmp_path / "default.json").read_text() == before
+    assert [f.name for f in tmp_path.glob("*.tmp")] == []
+
+
+def test_save_rejects_invalid(tmp_path):
+    s = ProfileStore(tmp_path)
+    p = s.active()
+    p.changes[("a", 1)] = float("nan")
+    with pytest.raises(ProfileError):
+        s.save(p)
+    p.changes.clear()
+    p.speed_keys = ("f1", "f6", "f7")
+    with pytest.raises(ProfileError):
+        s.save(p)
+
+
+def test_speed_keys_validation():
+    assert validate_speed_keys(["f5", "f6", "f7"]) == ("f5", "f6", "f7")
+    for bad in (["f1", "f6", "f7"], ["f5", "f5", "f7"], ["space", "f6", "f7"], ["f5", "f6"]):
+        with pytest.raises(ProfileError):
+            validate_speed_keys(bad)
+
+
+def test_live_validation():
+    LiveSettings(3, 0.5, 3.0).validate()
+    LiveSettings().validate()
+    for bad in (
+        LiveSettings(4),
+        LiveSettings(enemy_mult=0.6),
+        LiveSettings(troop_mult=3.25),
+        LiveSettings(enemy_mult=0.25),
+        LiveSettings(speed=True),
+        LiveSettings(enemy_mult=float("nan")),
+    ):
+        with pytest.raises(ProfileError):
+            bad.validate()
+
+
+def test_stale(tree, tmp_path):
+    p = ProfileStore(tmp_path).active()
+    p.changes = {("towers", "archers", "price", 1): 7, ("towers", "gone", 1): 1}
+    assert stale_changes(p, tree) == [("towers", "gone", 1)]
+
+
+def test_stale_enum_and_non_numeric(tree):
+    enum_leaf = next(leaf for leaf in tree.leaves.values() if leaf.is_enum)
+    str_leaf = next(leaf for leaf in tree.leaves.values() if leaf.kind == "str")
+    p = Profile("x", changes={enum_leaf.path: 1, str_leaf.path: 1})
+    assert stale_changes(p, tree) == [enum_leaf.path, str_leaf.path]
