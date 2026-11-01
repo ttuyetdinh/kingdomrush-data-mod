@@ -16,7 +16,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from krmod.gamedata.luart import LuaError, LuaRuntime
+from krmod.gamedata.luart import LuaRuntime
 from krmod.paths import GamePaths
 
 IMAGES_DIR = "_assets/kr6-desktop/images/ipadhd_bc3/"
@@ -87,6 +87,13 @@ _KR1_PREFIX = "gui_bottom_info_image_towers_"
 # (a whole scene tile, so they look different) -> n of encyclopedia_enemies_thumb_<n>.
 _ENEMY_THUMBS = {"dark_army/death_rider": 50}
 _THUMB_PREFIX = "encyclopedia_enemies_thumb_"
+
+# Descriptor key -> file name under IMAGES_DIR; each is read independently.
+_DESCRIPTORS = {
+    "room_tower": "room_tower.lua",
+    "gui_portraits": "gui_portraits.lua",
+    "encyclopedia_thumbs": "encyclopedia_thumbs.lua",
+}
 
 
 def _file_name(card_id: str) -> str:
@@ -162,26 +169,34 @@ def _wanted(frames: dict) -> dict[str, tuple[str, int, int, int, int]]:
     return wanted
 
 
+def _read_all_frames(paths: GamePaths, exe: zipfile.ZipFile) -> dict[str, dict[str, tuple[str, int, int, int, int]]]:
+    """Each descriptor on its own: one that cannot be read leaves only its family without portraits."""
+    frames: dict[str, dict[str, tuple[str, int, int, int, int]]] = {key: {} for key in _DESCRIPTORS}
+    try:
+        with LuaRuntime(paths.lua_dll) as lua:
+            for key, entry in _DESCRIPTORS.items():
+                try:
+                    frames[key] = _read_frames(lua, exe, entry)
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return frames
+
+
 def build_portrait_cache(paths: GamePaths) -> int:
     """Write every missing portrait PNG under <cache_dir>/portraits; return how many were written.
 
     Existing files are kept, so repeated starts only read the exe when something is missing.
-    Best effort: an unreadable exe or atlas leaves the affected cards without a portrait.
+    Best effort and never raises (it runs in a background thread): an unreadable exe,
+    descriptor, atlas or frame leaves only the affected cards without a portrait.
     """
     out_dir = Path(paths.cache_dir) / "portraits"
     written = 0
     try:
         with zipfile.ZipFile(paths.exe) as exe:
-            with LuaRuntime(paths.lua_dll) as lua:
-                frames = {
-                    "room_tower": _read_frames(lua, exe, "room_tower.lua"),
-                    "gui_portraits": _read_frames(lua, exe, "gui_portraits.lua"),
-                    "encyclopedia_thumbs": _read_frames(lua, exe, "encyclopedia_thumbs.lua"),
-                }
-            wanted = _wanted(frames)
+            wanted = _wanted(_read_all_frames(paths, exe))
             todo = {cid: fr for cid, fr in wanted.items() if not (out_dir / _file_name(cid)).is_file()}
-            if not todo:
-                return 0
             atlases = _Atlases(exe)
             # Group by atlas so each big DDS is decoded once and then dropped.
             by_atlas: dict[str, list[str]] = {}
@@ -192,9 +207,9 @@ def build_portrait_cache(paths: GamePaths) -> int:
                     try:
                         _save(atlases.crop(todo[cid]), out_dir / _file_name(cid))
                         written += 1
-                    except (OSError, ValueError, KeyError):
+                    except Exception:
                         continue
                 atlases.release(atlas)
-    except (OSError, KeyError, zipfile.BadZipFile, LuaError, ValueError):
+    except Exception:
         return written
     return written

@@ -3,6 +3,7 @@ import dataclasses
 import pytest
 from PIL import Image
 
+from krmod.assets import portraits
 from krmod.assets.portraits import build_portrait_cache, portrait_for
 
 
@@ -63,3 +64,43 @@ def test_second_build_skips_existing_files(cache_paths):
     assert build_portrait_cache(paths) == 0
     after = {f: f.stat().st_mtime_ns for f in (paths.cache_dir / "portraits").glob("*.png")}
     assert stamp == after
+
+
+def test_missing_descriptor_only_loses_its_family(game_paths, tmp_path, monkeypatch):
+    monkeypatch.setitem(portraits._DESCRIPTORS, "encyclopedia_thumbs", "no_such_descriptor.lua")
+    paths = dataclasses.replace(game_paths, cache_dir=tmp_path)
+    assert build_portrait_cache(paths) > 0
+    assert portrait_for("towers/archers", tmp_path) is not None
+    assert portrait_for("enemies/demons/demon_lord", tmp_path) is not None
+    assert portrait_for("enemies/dark_army/death_rider", tmp_path) is None
+
+
+def test_missing_big_descriptor_keeps_hud_families(game_paths, tmp_path, monkeypatch):
+    monkeypatch.setitem(portraits._DESCRIPTORS, "room_tower", "no_such_descriptor.lua")
+    paths = dataclasses.replace(game_paths, cache_dir=tmp_path)
+    assert build_portrait_cache(paths) > 0
+    assert portrait_for("towers/archers", tmp_path) is None
+    assert portrait_for("enemies/demons/demon_lord", tmp_path) is not None
+    assert portrait_for("towers/kr1/tesla", tmp_path) is not None
+
+
+def test_decode_failure_does_not_raise_and_skips_only_that_card(game_paths, tmp_path, monkeypatch):
+    real_crop = portraits._Atlases.crop
+    calls = {"n": 0}
+
+    def flaky_crop(self, frame):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise NotImplementedError("unsupported DDS format")
+        return real_crop(self, frame)
+
+    monkeypatch.setattr(portraits._Atlases, "crop", flaky_crop)
+    paths = dataclasses.replace(game_paths, cache_dir=tmp_path)
+    written = build_portrait_cache(paths)
+    assert written > 100
+    assert len(list((tmp_path / "portraits").glob("*.png"))) == written
+
+
+def test_unreadable_exe_returns_zero(game_paths, tmp_path):
+    paths = dataclasses.replace(game_paths, exe=tmp_path / "missing.exe", cache_dir=tmp_path)
+    assert build_portrait_cache(paths) == 0
