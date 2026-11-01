@@ -186,3 +186,17 @@ async def test_sniper_card_opens_without_error(user):
     user.find("Sniper").click()
     await user.should_see("Sniper")
     await user.should_see("Max range")
+
+
+async def test_c2_panel_not_rebuilt_on_cell_or_slider_edit(user):
+    await user.open("/")
+    user.find("Archers").click()
+    user.find(marker="row-expand-price").click()
+    lock_el = list(user.find(marker="c2-lock-price").elements)[0]
+
+    # Commit a cell edit:
+    user.find(marker="cell-towers.archers.price.1").clear().type("75").trigger("keydown.enter")
+
+    # The C2 panel must still be open, and the lock switch element must be the exact same object:
+    lock_el_after = list(user.find(marker="c2-lock-price").elements)[0]
+    assert lock_el_after is lock_el

@@ -37,6 +37,8 @@ def render(state: AppState) -> None:
                 from krmod.ui import main as ui_main
 
                 ui_main.refresh()
+                if ui_main._current_tab != "Rules":
+                    ui_main.rerender_right()
                 ui.notify("All changes reset", color="info")
 
             ui.button("Reset", on_click=do_reset).props(
@@ -131,26 +133,30 @@ def render(state: AppState) -> None:
             poll_timer.activate()
         else:
             poll_timer = ui.timer(POLL_INTERVAL_S, check_log)
-
     def on_apply_mod() -> None:
         nonlocal watcher, last_outcome
         summary_panel.visible = False
+        status_label.text = ""
+        status_label.visible = False
+
         running = launcher.find_game(state.paths)
-        if running is not None and running.modded:
+        is_running_modded = running is not None and running.modded
+        if is_running_modded:
             last_outcome = RunOutcome.UPDATED_RUNNING
+        else:
+            last_outcome = None
+
+        log_file = state.paths.mods_dir / "kr_mod_log.txt"
+        watcher = LogWatcher(log_file)
+        watcher.mark()
+        res = state.apply()
+
+        if is_running_modded:
             msg = "Mod written: changes apply at the next level start"
             status_label.text = msg
             status_label.visible = True
             ui.notify(msg, color="info")
         else:
-            last_outcome = None
-            status_label.text = ""
-            status_label.visible = False
-        log_file = state.paths.mods_dir / "kr_mod_log.txt"
-        watcher = LogWatcher(log_file)
-        watcher.mark()
-        res = state.apply()
-        if last_outcome != RunOutcome.UPDATED_RUNNING:
             ui.notify(f"Mod written: {res.applied} changes", color="positive")
         from krmod.ui import main as ui_main
 

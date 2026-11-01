@@ -75,7 +75,8 @@ def refresh() -> None:
         _topbar.refresh()
     if _cards_col is not None:
         _cards_col.refresh()
-    rerender_right()
+    if _current_tab == "Rules":
+        rerender_right()
 def _render_error(error_msg: str) -> None:
     with ui.column().classes("w-full h-screen items-center justify-center p-8 bg-slate-900 text-white gap-4"):
         ui.icon("error", size="4rem", color="negative")
@@ -109,6 +110,8 @@ def _render_shell(state: AppState) -> None:
 
     def on_profile_change() -> None:
         refresh()
+        if _current_tab != "Rules":
+            rerender_right()
 
     # Top Bar
     _topbar = TopBar(state, on_tab_change=on_tab_change, on_profile_change=on_profile_change)
