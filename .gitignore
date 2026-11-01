@@ -25,3 +25,5 @@ decompiled/
 # Local-only planning copy and NiceGUI storage
 .planning/
 .nicegui/
+*.egg-info/
+.pytest_cache/
