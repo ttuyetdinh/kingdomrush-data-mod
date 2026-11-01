@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from pathlib import Path
 
 # Compute cache directory and set NICEGUI_STORAGE_PATH before importing nicegui:
@@ -49,6 +50,9 @@ def main() -> None:
     webview_storage.mkdir(parents=True, exist_ok=True)
     nicegui_app.native.start_args["storage_path"] = str(webview_storage)
     nicegui_app.native.start_args["private_mode"] = False
+    # Window connection events in app.log help diagnose a window that stops responding.
+    nicegui_app.on_connect(lambda client: print(f"{time.strftime('%H:%M:%S')} window connected {client.id}"))
+    nicegui_app.on_disconnect(lambda client: print(f"{time.strftime('%H:%M:%S')} window disconnected {client.id}"))
 
     state, error_msg = load_state()
     build_page(state, error_msg, repo_dir=_repo_dir)
