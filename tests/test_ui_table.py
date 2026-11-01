@@ -159,6 +159,18 @@ async def test_row_c1_slider_and_mixed_label(user):
     assert row_val.text == "mixed"
 
 
+async def test_row_c1_slider_fine_step_150_pct(user):
+    await user.open("/")
+    user.find("Archers").click()
+    sl = user.find(marker="row-slider-price")
+    # 0.5625 track maps to 150% exactly:
+    sl.trigger("change", 0.5625)
+    await user.should_see("150%")
+    c1 = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
+    # 70 * 1.5 = 105
+    assert c1.value == "105"
+
+
 async def test_c2_lock_moves_all_levels(user):
     await user.open("/")
     user.find("Archers").click()
@@ -190,7 +202,7 @@ async def test_zero_original_leaves_at_zero(user):
     p_str = "towers.alchemist.ultimate.gold_pig.armor"
     cell = list(user.find(marker=f"cell-{p_str}").elements)[0]
     assert cell.value == "0"
-    # Move row slider to 300% (track 1.0):
+    # Move row slider to 500% (track 1.0):
     user.find(marker="row-slider-ultimate-gold_pig-armor").trigger("change", 1.0)
     cell = list(user.find(marker=f"cell-{p_str}").elements)[0]
     assert cell.value == "0"

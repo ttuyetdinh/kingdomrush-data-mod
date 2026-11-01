@@ -77,7 +77,7 @@ class CardSliders:
                     ui.label(cat).classes("w-28 text-xs font-medium text-slate-700")
 
                     slider = (
-                        ui.slider(min=0.0, max=1.0, step=0.005, value=track_val)
+                        ui.slider(min=0.0, max=1.0, step=0.00125, value=track_val)
                         .classes("flex-1")
                         .mark(f"card-slider-{cat_slug}")
                     )
@@ -130,7 +130,7 @@ class RowSlider:
 
         with ui.row().classes("items-center justify-end gap-2 no-wrap w-full"):
             self.slider = (
-                ui.slider(min=0.0, max=1.0, step=0.005, value=track_val)
+                ui.slider(min=0.0, max=1.0, step=0.00125, value=track_val)
                 .classes("w-24")
                 .mark(f"row-slider-{row_slug}")
             )
