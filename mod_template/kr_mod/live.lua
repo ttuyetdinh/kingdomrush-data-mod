@@ -39,25 +39,25 @@ function M.poll(K, ctx)
   local base = (ctx and ctx.base) or (K and K.base) or "."
   local path = base .. "/mods/kr_mod_live.lua"
   local live = M.read_live(path)
-  if not live then return end
-
   if type(K.live) ~= "table" then
     K.live = { speed = 1, enemy_mult = 1, troop_mult = 1 }
   end
 
-  if live.speed ~= K.file_speed then
-    K.file_speed = live.speed
-    K.live.speed = live.speed
-    if game then game.DBG_TIME_MULT = live.speed end
-    if ctx and ctx.log then ctx.log("speed x" .. tostring(live.speed)) end
-  end
+  if live then
+    if live.speed ~= K.file_speed then
+      K.file_speed = live.speed
+      K.live.speed = live.speed
+      if game then game.DBG_TIME_MULT = live.speed end
+      if ctx and ctx.log then ctx.log("speed x" .. tostring(live.speed)) end
+    end
 
-  if live.enemy_mult ~= K.live.enemy_mult then
-    if ctx and ctx.log then ctx.log("enemies x" .. tostring(live.enemy_mult)) end
-    K.live.enemy_mult = live.enemy_mult
-  end
+    if live.enemy_mult ~= K.live.enemy_mult then
+      if ctx and ctx.log then ctx.log("enemies x" .. tostring(live.enemy_mult)) end
+      K.live.enemy_mult = live.enemy_mult
+    end
 
-  K.live.troop_mult = live.troop_mult
+    K.live.troop_mult = live.troop_mult
+  end
 
   if type(K.pollers) == "table" then
     local names = {}
@@ -119,11 +119,7 @@ function M.install(K, ctx)
   local orig_update = game.update
   game.update = function(self, dt, ...)
     if orig_update then
-      local ok, err = pcall(orig_update, self, dt, ...)
-      if not ok then
-        local log_fn = (K and K.ctx and K.ctx.log) or (ctx and ctx.log)
-        if log_fn then log_fn("error update: " .. tostring(err)) end
-      end
+      orig_update(self, dt, ...)
     end
     local ok_poll, err_poll = pcall(function()
       local cur_now = 0
@@ -168,7 +164,7 @@ function M.install(K, ctx)
       local log_fn = (K and K.ctx and K.ctx.log) or (ctx and ctx.log)
       if log_fn then log_fn("error keypressed: " .. tostring(err)) end
     end
-    if handled then return end
+    if handled then return true end
     if orig_keypressed then
       return orig_keypressed(self, key, isrepeat, ...)
     end
@@ -177,11 +173,7 @@ function M.install(K, ctx)
   local orig_draw = game.draw
   game.draw = function(self, ...)
     if orig_draw then
-      local ok, err = pcall(orig_draw, self, ...)
-      if not ok then
-        local log_fn = (K and K.ctx and K.ctx.log) or (ctx and ctx.log)
-        if log_fn then log_fn("error draw: " .. tostring(err)) end
-      end
+      orig_draw(self, ...)
     end
     local ok_badge, err_badge = pcall(function()
       local mult = (self and self.DBG_TIME_MULT) or (game and game.DBG_TIME_MULT)
@@ -202,7 +194,7 @@ function M.install(K, ctx)
         end
         if type(g.push) == "function" then pcall(g.push) end
         if type(g.origin) == "function" then pcall(g.origin) end
-        if type(g.setColor) == "function" then pcall(g.setColor, 1, 1, 1, 1) end
+        if type(g.setColor) == "function" then pcall(g.setColor, 255, 255, 255, 255) end
         if type(g.print) == "function" then pcall(g.print, text, x, y) end
         if type(g.setColor) == "function" and r ~= nil then pcall(g.setColor, r, gr, b, a) end
         if type(g.pop) == "function" then pcall(g.pop) end

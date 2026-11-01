@@ -1,3 +1,5 @@
+import pytest
+
 def setup(h, speed=1):
     h.lua("BAL = { towers = {} }")
     h.write_data([])
@@ -12,7 +14,7 @@ def test_start_speed_from_live_file(harness):
 
 def test_speed_keys_consumed(harness):
     setup(harness)
-    harness.lua('game:keypressed("f7")')
+    assert harness.lua('return tostring(game:keypressed("f7"))') == "true"
     assert harness.lua("return game.DBG_TIME_MULT") == "3"
     assert harness.lua("return tostring(LAST_KEY)") == "nil"
     harness.lua('game:keypressed("a")')
@@ -141,3 +143,35 @@ def test_install_without_game_is_safe(harness):
         """)
     finally:
         harness.lua("game = OLD_GAME")
+
+
+def test_badge_color_channels(harness):
+    setup(harness, speed=2)
+    harness.lua("""
+    COLORS_CALLED = {}
+    love.graphics.setColor = function(...)
+      table.insert(COLORS_CALLED, table.concat({...}, ","))
+    end
+    game:draw()
+    """)
+    assert harness.lua("return COLORS_CALLED[1]") == "255,255,255,255"
+
+
+def test_original_update_error_propagates(harness):
+    harness.lua('game.update = function() error("game crashed") end')
+    setup(harness)
+    with pytest.raises(Exception, match="game crashed"):
+        harness.lua("game:update(0.03)")
+
+
+def test_pollers_called_when_live_file_invalid(harness):
+    setup(harness)
+    harness.lua("""
+    POLLER_COUNT = 0
+    KRMOD.pollers["always_poll"] = function(K)
+      POLLER_COUNT = POLLER_COUNT + 1
+    end
+    """)
+    harness.write_raw("kr_mod_live.lua", "return { speed = 99, enemy_mult = 1, troop_mult = 1 }")
+    harness.lua("NOW = 1; game:update(0.03)")
+    assert harness.lua("return tostring(POLLER_COUNT)") == "1"
