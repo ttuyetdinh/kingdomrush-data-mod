@@ -96,6 +96,7 @@ class TopBar:
                         "enemy-mult",
                         slider_classes="w-full",
                         wrapper_classes="w-[75px] shrink-0",
+                        slider_props="track-color=grey-7",
                         label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
                     )
 
@@ -108,6 +109,7 @@ class TopBar:
                         "troop-mult",
                         slider_classes="w-full",
                         wrapper_classes="w-[75px] shrink-0",
+                        slider_props="track-color=grey-7",
                         label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
                     )
                 self.change_label = ui.label(self._change_text()).classes(

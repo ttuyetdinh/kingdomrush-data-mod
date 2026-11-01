@@ -5,7 +5,7 @@ import pytest
 from krmod.modgen import launcher
 from krmod.modgen.launcher import RunningGame
 from krmod.profiles import ProfileStore
-
+from krmod.ui import applybar
 @pytest.fixture
 def state(user):
     return sys.modules["krmod.ui.main"]._active_state
@@ -14,6 +14,7 @@ def state(user):
 def safe_launcher(monkeypatch):
     monkeypatch.setattr(launcher, "launch", lambda paths: 99999)
     monkeypatch.setattr(launcher, "find_game", lambda paths: None)
+    monkeypatch.setattr(applybar, "POLL_INTERVAL_S", 0.05)
 
 
 async def test_speed_button_writes_live(user, state):
@@ -162,7 +163,7 @@ async def test_mirrored_multipliers_on_rules_tab(user, state):
 
 
 async def test_log_summary_panel_display(user, state, monkeypatch):
-    import os, time, asyncio
+    import os, time
     monkeypatch.setattr(launcher, "find_game", lambda paths: None)
 
     await user.open("/")
@@ -182,8 +183,6 @@ async def test_log_summary_panel_display(user, state, monkeypatch):
     future_time = time.time() + 5
     os.utime(log_file, (future_time, future_time))
 
-    # Wait for timer poll tick
-    await asyncio.sleep(1.2)
     await user.should_see("Applied: 4 changes")
     await user.should_see("towers.archers.unknown_stat")
     await user.should_see("syntax error in custom file")
@@ -191,7 +190,7 @@ async def test_log_summary_panel_display(user, state, monkeypatch):
 
 
 async def test_log_summary_panel_updated_running(user, state, monkeypatch):
-    import os, time, asyncio
+    import os, time
     monkeypatch.setattr(launcher, "find_game", lambda paths: RunningGame(2, True))
 
     await user.open("/")
@@ -205,9 +204,8 @@ async def test_log_summary_panel_updated_running(user, state, monkeypatch):
     future_time = time.time() + 5
     os.utime(log_file, (future_time, future_time))
 
-    await asyncio.sleep(1.2)
-    await user.should_not_see("Applied: 10 changes")
     await user.should_see("Game is running: changes apply at the next level start")
+    await user.should_not_see("Applied: 10 changes")
 
 
 async def test_reset_all_rerenders_open_card(user):
@@ -243,25 +241,24 @@ async def test_profile_switch_on_rules_tab_preserves_rules_view(user):
 
 
 async def test_apply_mod_with_running_modded_game(user, state, monkeypatch):
-    import os, time, asyncio
+    import os, time
     monkeypatch.setattr(launcher, "find_game", lambda paths: RunningGame(1, True))
     await user.open("/")
 
     log_file = state.paths.mods_dir / "kr_mod_log.txt"
     user.find(marker="apply-mod").click()
+    await user.should_see("Mod written: changes apply at the next level start")
 
     log_content = "applied 8 changes\n"
     log_file.write_text(log_content, encoding="utf-8")
     future_time = time.time() + 5
     os.utime(log_file, (future_time, future_time))
 
-    await asyncio.sleep(1.2)
-    await user.should_not_see("Applied: 8 changes")
     await user.should_see("Game is running: changes apply at the next level start")
+    await user.should_not_see("Applied: 8 changes")
 
 
 async def test_log_written_before_apply_produces_no_panel(user, state, monkeypatch):
-    import asyncio
     monkeypatch.setattr(launcher, "find_game", lambda paths: None)
     await user.open("/")
 
@@ -269,6 +266,19 @@ async def test_log_written_before_apply_produces_no_panel(user, state, monkeypat
     log_file.write_text("applied 2 changes\n", encoding="utf-8")
 
     user.find(marker="apply-mod").click()
-    await asyncio.sleep(1.2)
-
     await user.should_not_see(marker="log-summary-panel")
+
+
+async def test_polling_timeout_hides_status_line(user, monkeypatch):
+    import asyncio
+    monkeypatch.setattr(launcher, "find_game", lambda paths: None)
+    monkeypatch.setattr(applybar, "POLL_INTERVAL_S", 0.02)
+    monkeypatch.setattr(applybar, "POLL_TIMEOUT_S", 0.05)
+
+    await user.open("/")
+    user.find(marker="apply-run").click()
+    status_el = list(user.find(marker="status-line").elements)[0]
+    assert status_el.visible is True
+
+    await asyncio.sleep(0.1)
+    assert status_el.visible is False

@@ -287,6 +287,7 @@ def live_slider(
     slider_classes: str = "w-full",
     label_classes: str = "text-xs font-mono whitespace-nowrap",
     wrapper_classes: str = "w-[90px] shrink-0",
+    slider_props: str = "",
 ) -> tuple[ui.label, ui.slider]:
     """Shared helper for live enemy/troop multiplier sliders."""
     val = float(getattr(state.profile.live, field))
@@ -297,7 +298,8 @@ def live_slider(
             .classes(slider_classes)
             .mark(marker)
         )
-
+        if slider_props:
+            slider.props(slider_props)
     def on_change(e: Any) -> None:
         raw = (
             e.args

@@ -7,6 +7,7 @@ from nicegui import ui
 
 from krmod.model.values import path_str
 from krmod.profiles import FORBIDDEN_KEYS, ProfileError, validate_speed_keys
+from krmod.state import AppState
 from krmod.ui.sliders import live_slider
 
 
