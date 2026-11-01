@@ -14,13 +14,19 @@ from krmod.model.scaling import (
 
 
 def test_pct_bounds():
-    assert PCT_MIN == 50.0 and PCT_MAX == 300.0
+    assert PCT_MIN == 0.0 and PCT_MAX == 500.0
 
 
-@pytest.mark.parametrize("t,p", [(0, 50), (0.25, 75), (0.5, 100), (0.75, 200), (1, 300)])
+@pytest.mark.parametrize("t,p", [(0, 0), (0.25, 50), (0.5, 100), (0.75, 300), (1, 500)])
 def test_track_mapping(t, p):
     assert track_to_pct(t) == p and pct_to_track(p) == t
 
+
+def test_track_clamping():
+    assert pct_to_track(-10) == 0.0
+    assert pct_to_track(600) == 1.0
+    assert track_to_pct(-0.5) == 0.0
+    assert track_to_pct(1.5) == 500.0
 
 @pytest.mark.parametrize("t", [0.0, 0.1, 0.125, 0.3, 0.5, 0.6, 0.875, 1.0])
 def test_track_round_trip(t):
@@ -33,6 +39,11 @@ def test_track_round_trip(t):
 )
 def test_scale(orig, pct, out):
     assert scale(orig, pct) == out
+def test_scale_zero_percent():
+    assert scale(70, 0) == 0
+    assert scale(0.05, 0) == 0
+    assert scale(1.33, 0) == 0
+
 
 def test_scale_preserves_multi_decimal_precision():
     assert scale(0.002, 50) == 0.001

@@ -8,8 +8,8 @@ from typing import Sequence
 
 from krmod.model.values import KeyPath
 
-PCT_MIN = 50.0
-PCT_MAX = 300.0
+PCT_MIN = 0.0
+PCT_MAX = 500.0
 PCT_MID = 100.0
 
 _WHOLE = Decimal(1)
@@ -18,7 +18,7 @@ _HUNDRED = Decimal(100)
 
 
 def track_to_pct(t: float) -> float:
-    """Slider track position 0..1 to percent: left half 50..100, right half 100..300."""
+    """Slider track position 0..1 to percent: left half 0..100, right half 100..500."""
     t = min(1.0, max(0.0, t))
     if t <= 0.5:
         return PCT_MIN + (PCT_MID - PCT_MIN) * (t / 0.5)

@@ -312,3 +312,15 @@ def test_scale_row_noise_original_roundtrip_zero_changes(state):
     assert state.change_count() > 0
     state.scale_row(row, 100.0)
     assert state.change_count() == 0
+
+
+def test_scale_row_at_zero_sets_zero_and_back_to_100_leaves_no_changes(state):
+    row = next(r for r in state.rows("towers/archers") if r.id == "price")
+    state.scale_row(row, 0.0)
+    for p in row.cells:
+        assert state.current(p) == 0.0
+    assert state.change_count() > 0
+    state.scale_row(row, 100.0)
+    for p in row.cells:
+        assert state.current(p) == state.original(p)
+    assert state.change_count() == 0

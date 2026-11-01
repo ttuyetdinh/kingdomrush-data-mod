@@ -66,7 +66,7 @@ class CardSliders:
         with ui.column().classes("w-full bg-slate-50 border border-slate-200 rounded-lg p-3 gap-2 mb-3 shrink-0"):
             with ui.row().classes("items-center justify-between w-full mb-1"):
                 ui.label("Quick scale all levels").classes("text-xs font-semibold text-slate-500 uppercase tracking-wide")
-                ui.label("50% to 300% (center = 100%)").classes("text-xs text-slate-400 italic")
+                ui.label("0% to 500% (center = 100%)").classes("text-xs text-slate-400 italic")
 
             for cat in categories:
                 pct = self.state.card_pct(self.card_id, cat)

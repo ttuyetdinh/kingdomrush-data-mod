@@ -112,8 +112,8 @@ async def test_card_c1_slider_halves_prices(user):
     await user.open("/")
     user.find("Knights").click()
     slider = user.find(marker="card-slider-all-costs")
-    # 0.0 track maps to 50%:
-    slider.trigger("change", 0.0)
+    # 0.25 track maps to 50%:
+    slider.trigger("change", 0.25)
     await user.should_see("50%")
     c1 = list(user.find(marker="cell-towers.knights.price.1").elements)[0]
     c2 = list(user.find(marker="cell-towers.knights.price.2").elements)[0]
@@ -125,12 +125,27 @@ async def test_card_c1_slider_halves_prices(user):
     assert c4.value == "110"
 
 
+
+async def test_card_c1_slider_zero_and_max(user):
+    await user.open("/")
+    user.find("Knights").click()
+    slider = user.find(marker="card-slider-all-costs")
+    # 0.0 track maps to 0%:
+    slider.trigger("change", 0.0)
+    await user.should_see("0%")
+    c1 = list(user.find(marker="cell-towers.knights.price.1").elements)[0]
+    assert c1.value == "0"
+    # 1.0 track maps to 500%:
+    slider.trigger("change", 1.0)
+    await user.should_see("500%")
+    assert c1.value == "350"
+
 async def test_row_c1_slider_and_mixed_label(user):
     await user.open("/")
     user.find("Archers").click()
     sl = user.find(marker="row-slider-price")
-    # 0.0 track maps to 50%:
-    sl.trigger("change", 0.0)
+    # 0.25 track maps to 50%:
+    sl.trigger("change", 0.25)
     c1 = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
     c2 = list(user.find(marker="cell-towers.archers.price.2").elements)[0]
     assert c1.value == "35"
