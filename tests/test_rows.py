@@ -69,6 +69,19 @@ def test_string_rows_are_read_only(tree):
 
 def test_friendly_label():
     assert friendly_label("damage_min") == "Damage (min)" and friendly_label("hp_max") == "HP (max)"
-    assert friendly_label("hp") == "HP" and friendly_label("s_damage") == "Damage"
+    assert friendly_label("hp") == "HP" and friendly_label("s_damage") == "Damage (info text)"
+    assert friendly_label("s_cd_mult") == "Cd mult (info text)"
     assert friendly_label("regen_hp") == "Regen HP" and friendly_label("price") == "Price"
     assert friendly_label("min_hp_max") == "Min HP (max)"
+
+
+def test_no_duplicate_row_labels_within_group(tree):
+    idx = GroupIndex.build(tree)
+    for tab in ("Towers", "Troops", "Heroes", "Skills", "Enemies", "Items", "Stages"):
+        for card in idx.cards(tab):
+            rows = build_rows(card, idx.paths_of(card.id), tree)
+            seen = set()
+            for r in rows:
+                key = (r.group, r.label)
+                assert key not in seen, f"Duplicate label {r.label!r} in group {r.group!r} on card {card.id!r}"
+                seen.add(key)

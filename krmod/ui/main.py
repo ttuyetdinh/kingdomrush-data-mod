@@ -5,6 +5,7 @@ from nicegui import ui
 
 from krmod.assets.portraits import portrait_for
 from krmod.state import AppState
+from krmod.ui import table
 from krmod.ui.cards import CardsColumn
 from krmod.ui.topbar import TopBar
 
@@ -42,8 +43,8 @@ def show_card(card_id: str) -> None:
                     ui.label(card.title[:2].upper())
             with ui.column().classes("gap-0.5"):
                 ui.label(card.title).classes("text-2xl font-bold text-slate-900").mark("editor-title")
-                ui.label(f"{card.tab} · {card.group}").classes("text-xs text-slate-500")
 
+    table.render_card(_active_state, card_id)
 
 def refresh() -> None:
     """Module-level refresh hook for UI updates after state mutations."""
