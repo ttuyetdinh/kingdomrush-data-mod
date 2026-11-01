@@ -73,24 +73,32 @@ function M.apply_all(K)
 
   -- 1. Walk templates: require("entity_db").entities
   local ok_edb, edb = pcall(require, "entity_db")
-  if ok_edb and type(edb) == "table" and type(edb.entities) == "table" then
-    for _, t in pairs(edb.entities) do
-      if type(t) == "table" and type(t.barrack) == "table" then
-        local ok, _ = pcall(M.apply_barrack, t.barrack, mult)
-        if ok then
-          count = count + 1
+  if ok_edb then
+    if type(edb) == "table" and type(edb.entities) == "table" then
+      for _, t in pairs(edb.entities) do
+        if type(t) == "table" and type(t.barrack) == "table" then
+          local ok, err = pcall(M.apply_barrack, t.barrack, mult)
+          if ok then
+            count = count + 1
+          else
+            write_log(K, "error troops: " .. tostring(err))
+          end
         end
       end
     end
+  else
+    write_log(K, "error troops: " .. tostring(edb))
   end
 
   -- 2. Walk live entities: game.store.entities
   if type(game) == "table" and type(game.store) == "table" and type(game.store.entities) == "table" then
     for _, t in pairs(game.store.entities) do
       if type(t) == "table" and type(t.barrack) == "table" then
-        local ok, _ = pcall(M.apply_barrack, t.barrack, mult)
+        local ok, err = pcall(M.apply_barrack, t.barrack, mult)
         if ok then
           count = count + 1
+        else
+          write_log(K, "error troops: " .. tostring(err))
         end
       end
     end

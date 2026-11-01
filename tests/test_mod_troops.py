@@ -126,3 +126,21 @@ def test_apply_all_odd_store_shapes(troop_h):
       count = KRMOD.pollers.troops(KRMOD)"""
     )
     assert troop_h.lua("return tostring(count)") == "0"
+
+
+def test_apply_all_error_logged_and_continues(troop_h):
+    troop_h.lua(
+        """local E = require('entity_db')
+      local bad_table = {}
+      setmetatable(bad_table, { __index = function() error('boom') end })
+      E.entities.bad = { barrack = bad_table }
+      E.entities.good = { barrack = { max_soldiers = 3 } }
+      KRMOD.live.troop_mult = 2
+      count = KRMOD.pollers.troops(KRMOD)"""
+    )
+    assert troop_h.lua("return tostring(count)") == "1"
+    assert troop_h.lua("return require('entity_db').entities.good.barrack.max_soldiers") == "6"
+    log = troop_h.log()
+    assert "error troops: " in log
+    assert "boom" in log
+    assert "troops x2: 1 barracks" in log
