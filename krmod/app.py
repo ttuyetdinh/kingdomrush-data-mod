@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 import sys
-import threading
 from pathlib import Path
 
 # Compute cache directory and set NICEGUI_STORAGE_PATH before importing nicegui:
@@ -25,9 +24,8 @@ if sys.stdout is None or sys.stderr is None:
 
 from nicegui import app as nicegui_app, ui  # noqa: E402
 
-from krmod.assets.portraits import build_portrait_cache  # noqa: E402
-from krmod.gamedata.reader import ReaderError, read_balance  # noqa: E402
-from krmod.model.grouping import GroupIndex  # noqa: E402
+from krmod.gamedata.reader import ReaderError  # noqa: E402
+from krmod.gameload import load_game  # noqa: E402
 from krmod.paths import GameNotFoundError, GamePaths  # noqa: E402
 from krmod.profiles import ProfileStore  # noqa: E402
 from krmod.state import AppState  # noqa: E402
@@ -38,9 +36,7 @@ def load_state(repo_dir: Path | None = None) -> tuple[AppState | None, str | Non
     """Locate game paths, read balance, build index and profile store."""
     try:
         paths = GamePaths.locate(repo_dir=repo_dir)
-        threading.Thread(target=build_portrait_cache, args=(paths,), daemon=True).start()
-        tree = read_balance(paths)
-        index = GroupIndex.build(tree)
+        tree, index = load_game(paths)
         store = ProfileStore(paths.profiles_dir)
         return AppState(paths, tree, index, store), None
     except (GameNotFoundError, ReaderError) as exc:
@@ -55,7 +51,7 @@ def main() -> None:
     nicegui_app.native.start_args["private_mode"] = False
 
     state, error_msg = load_state()
-    build_page(state, error_msg)
+    build_page(state, error_msg, repo_dir=_repo_dir)
     ui.run(
         native=True,
         reload=False,

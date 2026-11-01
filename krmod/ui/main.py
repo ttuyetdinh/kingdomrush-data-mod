@@ -1,11 +1,17 @@
 """UI shell page builder: window layout, top bar, left cards, right editor and bottom bar."""
 from __future__ import annotations
 
-from nicegui import ui
+from pathlib import Path
+
+from nicegui import run, ui
 
 from krmod.assets.portraits import portrait_for
+from krmod.gamedata.reader import ReaderError
+from krmod.gameload import open_game_dir
+from krmod.paths import GameNotFoundError, default_repo_dir, save_game_dir_setting
+from krmod.profiles import ProfileStore
 from krmod.state import AppState
-from krmod.ui import applybar, rules, table
+from krmod.ui import applybar, gamefolder, rules, table
 from krmod.ui.cards import CardsColumn
 from krmod.ui.topbar import TopBar
 
@@ -15,6 +21,7 @@ REGIONS: dict[str, ui.element] = {}
 # Internal state references:
 _active_state: AppState | None = None
 _current_error: str | None = None
+_repo_dir: Path | None = None
 _topbar: TopBar | None = None
 _cards_col: CardsColumn | None = None
 _active_card_id: str | None = None
@@ -33,7 +40,7 @@ def show_card(card_id: str) -> None:
     card = _active_state.index.card(card_id)
     right.clear()
     with right:
-        portrait = portrait_for(card.id, _active_state.paths.cache_dir)
+        portrait = portrait_for(card.id, _active_state.paths.portraits_dir)
         with ui.row().classes("items-center gap-4 mb-4 shrink-0"):
             if portrait and portrait.is_file():
                 ui.image(str(portrait)).classes("w-14 h-14 rounded-lg shadow-sm")
@@ -78,11 +85,51 @@ def refresh() -> None:
         _cards_col.refresh()
     if _current_tab == "Rules":
         rerender_right()
+
+
+async def use_game_folder(text: str) -> bool:
+    """Validate and read a chosen game folder, save it, then reload the page so it shows the editor.
+
+    With an active state this switches it to the new folder (profile and changes are kept);
+    without one (startup error) it builds the state first. An invalid folder only notifies and
+    returns False.
+    """
+    global _active_state, _current_error
+    repo_dir = _repo_dir or default_repo_dir()
+    raw = text.strip().strip('"')
+    if not raw:
+        ui.notify("Enter the path of the game folder.", color="negative")
+        return False
+    try:
+        # Reading the balance data takes a moment: keep it off the event loop.
+        loaded = await run.io_bound(open_game_dir, Path(raw).expanduser().resolve(), repo_dir)
+        if loaded is None:  # the app is shutting down
+            return False
+        paths, tree, index = loaded
+        save_game_dir_setting(repo_dir, paths.game_dir)
+    except (GameNotFoundError, ReaderError, OSError) as exc:
+        ui.notify(str(exc), color="negative")
+        return False
+    if _active_state is None:
+        _active_state = AppState(paths, tree, index, ProfileStore(paths.profiles_dir))
+        _current_error = None
+    else:
+        _active_state.switch_game(paths, tree, index)
+    ui.navigate.reload()
+    return True
+
+
 def _render_error(error_msg: str) -> None:
     with ui.column().classes("w-full h-screen items-center justify-center p-8 bg-slate-900 text-white gap-4"):
         ui.icon("error", size="4rem", color="negative")
         ui.label("Error starting KrGenesis Mod").classes("text-2xl font-bold text-white")
         ui.label(error_msg).classes("text-sm text-red-300 max-w-xl text-center font-mono bg-slate-800 p-4 rounded-lg border border-red-500/30")
+        with ui.card().classes("w-full max-w-xl gap-2"):
+            ui.label("Select the folder that contains Kingdom Rush Genesis.exe").classes("text-sm text-slate-700")
+            note = gamefolder.env_override_note()
+            if note:
+                ui.label(note).classes("text-xs text-amber-700")
+            gamefolder.render_chooser(str((_repo_dir or default_repo_dir()).parent), use_game_folder)
 
 
 def _render_shell(state: AppState) -> None:
@@ -120,7 +167,7 @@ def _render_shell(state: AppState) -> None:
             rerender_right()
 
     # Top Bar
-    _topbar = TopBar(state, on_tab_change=on_tab_change, on_profile_change=on_profile_change)
+    _topbar = TopBar(state, on_tab_change=on_tab_change, on_profile_change=on_profile_change, on_game_dir=use_game_folder)
     REGIONS["topbar_right"] = _topbar.topbar_right
 
     # Main content area (left cards column + right editor column)
@@ -153,11 +200,12 @@ def _render_page(state: AppState | None, error: str | None) -> None:
         _render_shell(state)
 
 
-def build_page(state: AppState | None, error: str | None) -> None:
+def build_page(state: AppState | None, error: str | None, repo_dir: Path | None = None) -> None:
     """Build the page layout registered on '/'."""
-    global _active_state, _current_error
+    global _active_state, _current_error, _repo_dir
     _active_state = state
     _current_error = error
+    _repo_dir = repo_dir
 
     @ui.page("/")
     def index_page():

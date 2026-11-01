@@ -2,7 +2,6 @@ import pytest
 from nicegui.testing.user_simulation import user_simulation
 
 from krmod.app import load_state
-from krmod.ui import main as ui_main
 
 
 async def test_shell_renders(user):
@@ -152,6 +151,9 @@ async def test_profile_error_shown_inline(user):
 
 async def test_regions_exposed(user):
     await user.open("/")
+    # nicegui drops krmod.ui.main from sys.modules after each simulation; use the live module.
+    from krmod.ui import main as ui_main
+
     assert isinstance(ui_main.REGIONS, dict)
     for key in ("left", "right", "bottom", "topbar_right"):
         assert key in ui_main.REGIONS

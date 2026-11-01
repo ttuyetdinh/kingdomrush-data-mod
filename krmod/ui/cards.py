@@ -92,7 +92,7 @@ class CardsColumn:
 
         with tile:
             # Portrait or initials fallback
-            portrait_path = portrait_for(card.id, self.state.paths.cache_dir)
+            portrait_path = portrait_for(card.id, self.state.paths.portraits_dir)
             if portrait_path and portrait_path.is_file():
                 ui.image(str(portrait_path)).classes("w-10 h-10 rounded object-cover shadow-xs")
             else:

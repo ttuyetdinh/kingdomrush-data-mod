@@ -41,6 +41,13 @@ class AppState:
         self.store = store
         self._rows_cache: dict[str, list[StatRow]] = {}
 
+    def switch_game(self, paths: GamePaths, tree: BalanceTree, index: GroupIndex) -> None:
+        """Point the state at another game folder; the profile store and its changes stay."""
+        self.paths = paths
+        self.tree = tree
+        self.index = index
+        self._rows_cache.clear()
+
     @property
     def profile(self) -> Profile:
         return self.store.active()
