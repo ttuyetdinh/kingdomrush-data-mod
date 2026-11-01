@@ -16,9 +16,10 @@ from krmod.ui.main import build_page
 core.reset()
 
 paths = GamePaths.locate()
-# Use isolated test profiles directory:
+# Use isolated test profiles and mods directories:
 _test_profiles = Path(tempfile.mkdtemp(prefix="krmod-ui-test-profiles-"))
-paths = dataclasses.replace(paths, profiles_dir=_test_profiles)
+_test_mods = Path(tempfile.mkdtemp(prefix="krmod-ui-test-mods-"))
+paths = dataclasses.replace(paths, profiles_dir=_test_profiles, mods_dir=_test_mods)
 
 tree = read_balance(paths)
 index = GroupIndex.build(tree)

@@ -14,6 +14,7 @@ from krmod.model.scaling import (
     track_to_pct,
 )
 from krmod.model.values import KeyPath, path_str
+from krmod.profiles import ProfileError
 from krmod.state import AppState
 
 
@@ -275,3 +276,49 @@ class C2Panel:
             if bar:
                 curr_pct = min(100.0, max(0.0, (curr / self.high) * 100.0)) if self.high > 0 else 0.0
                 bar.style(f"width: {curr_pct}%;")
+
+
+def live_slider(
+    state: AppState,
+    field: str,
+    prefix: str,
+    marker: str,
+    *,
+    slider_classes: str = "w-full",
+    label_classes: str = "text-xs font-mono whitespace-nowrap",
+    wrapper_classes: str = "w-[90px] shrink-0",
+    slider_props: str = "",
+) -> tuple[ui.label, ui.slider]:
+    """Shared helper for live enemy/troop multiplier sliders."""
+    val = float(getattr(state.profile.live, field))
+    label = ui.label(f"{prefix} {val:g}x").classes(label_classes)
+    with ui.element("div").classes(wrapper_classes):
+        slider = (
+            ui.slider(min=0.5, max=3.0, step=0.25, value=val)
+            .classes(slider_classes)
+            .mark(marker)
+        )
+        if slider_props:
+            slider.props(slider_props)
+    def on_change(e: Any) -> None:
+        raw = (
+            e.args
+            if (e.args is not None and isinstance(e.args, (int, float)))
+            else slider.value
+        )
+        new_val = float(raw if raw is not None else 1.0)
+        curr = float(getattr(state.profile.live, field))
+        try:
+            kwargs = {field: new_val}
+            state.set_live(**kwargs)
+            label.text = f"{prefix} {new_val:g}x"
+            from krmod.ui import main as ui_main
+
+            ui_main.refresh()
+        except ProfileError as exc:
+            ui.notify(str(exc), color="negative")
+            slider.value = curr
+            label.text = f"{prefix} {curr:g}x"
+
+    slider.on("change", on_change)
+    return label, slider

@@ -8,8 +8,9 @@ from nicegui import ui
 UI_TABS: tuple[str, ...] = (
     "Towers", "Troops", "Heroes", "Skills", "Enemies", "Items", "Stages", "Rules"
 )
-from krmod.profiles import ProfileError
+from krmod.profiles import ProfileError, slug
 from krmod.state import AppState
+from krmod.ui.sliders import live_slider
 
 
 class TopBar:
@@ -30,15 +31,19 @@ class TopBar:
         self.profile_menu: ui.menu
         self.topbar_right: ui.row
         self.tabs_el: ui.tabs
-
+        self.speed_buttons: dict[int, ui.button] = {}
+        self.enemy_slider: ui.slider
+        self.enemy_label: ui.label
+        self.troop_slider: ui.slider
+        self.troop_label: ui.label
         self._build()
 
     def _build(self) -> None:
         with ui.header().classes(
-            "w-full items-center justify-between px-4 py-2 bg-slate-900 text-white shadow"
+            "w-full items-center justify-between px-3 py-2 bg-slate-900 text-white shadow flex-nowrap"
         ):
             # Left section: App name, self-check status and warning chip
-            with ui.row().classes("items-center gap-3"):
+            with ui.row().classes("items-center gap-3 flex-nowrap shrink-0"):
                 ui.label("KrGenesis Mod").classes("text-lg font-bold tracking-tight text-white")
 
                 check = self.state.index.self_check()
@@ -58,14 +63,55 @@ class TopBar:
                 on_change=lambda e: self.on_tab_change(e.value),
             ).props(
                 "dense no-caps inline-label active-color=white active-bg-color=primary rounded indicator-color=transparent text-color=grey-5"
-            ).classes("bg-slate-800/80 p-1 rounded-lg")
+            ).classes("bg-slate-800/80 p-0.5 rounded-lg shrink-0")
             with self.tabs_el:
                 for tab in UI_TABS:
-                    ui.tab(tab)
+                    ui.tab(tab).props("dense").classes("px-1.5 py-0 min-h-0 text-xs")
 
-            # Right section: Change count, profile dropdown, and placeholder for Task 13
-            self.topbar_right = ui.row().classes("items-center gap-3")
+            # Right section: Live controls, change count, profile dropdown
+            self.topbar_right = ui.row().classes(
+                "items-center gap-1.5 flex-nowrap shrink-0 pr-4"
+            )
             with self.topbar_right:
+                # Speed buttons
+                with ui.row().classes("items-center bg-slate-800 rounded p-0.5 gap-0.5"):
+                    for s in (1, 2, 3):
+                        btn = (
+                            ui.button(
+                                f"×{s}",
+                                on_click=lambda sp=s: self._set_speed(sp),
+                            )
+                            .props("dense no-caps")
+                            .mark(f"speed-{s}")
+                        )
+                        self.speed_buttons[s] = btn
+                self._update_speed_buttons()
+
+                # Enemy multiplier slider
+                with ui.row().classes("items-center gap-1 flex-nowrap"):
+                    self.enemy_label, self.enemy_slider = live_slider(
+                        self.state,
+                        "enemy_mult",
+                        "Enemies",
+                        "enemy-mult",
+                        slider_classes="w-full",
+                        wrapper_classes="w-[75px] shrink-0",
+                        slider_props="track-color=grey-7",
+                        label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
+                    )
+
+                # Troop multiplier slider
+                with ui.row().classes("items-center gap-1 flex-nowrap"):
+                    self.troop_label, self.troop_slider = live_slider(
+                        self.state,
+                        "troop_mult",
+                        "Troops",
+                        "troop-mult",
+                        slider_classes="w-full",
+                        wrapper_classes="w-[75px] shrink-0",
+                        slider_props="track-color=grey-7",
+                        label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
+                    )
                 self.change_label = ui.label(self._change_text()).classes(
                     "text-xs text-slate-300 font-mono px-2 py-1 bg-slate-800 rounded"
                 )
@@ -77,7 +123,6 @@ class TopBar:
                 with self.profile_button:
                     self.profile_menu = ui.menu().classes("min-w-[180px]")
                     self._build_profile_menu()
-
         self._build_dialogs()
 
     def _change_text(self) -> str:
@@ -109,7 +154,7 @@ class TopBar:
                 item = ui.menu_item(
                     name,
                     on_click=lambda n=name: self._switch_profile(n),
-                ).mark(f"profile-item-{name} {name}")
+                ).mark(f"profile-item-{slug(name)}")
                 if is_active:
                     item.props("active")
 
@@ -245,3 +290,34 @@ class TopBar:
         self.change_label.text = self._change_text()
         self.profile_button.text = self.state.profile.name
         self._build_profile_menu()
+        self._update_speed_buttons()
+        e_val = self.state.profile.live.enemy_mult
+        self.enemy_slider.value = e_val
+        self.enemy_label.text = f"Enemies {e_val:g}x"
+        t_val = self.state.profile.live.troop_mult
+        self.troop_slider.value = t_val
+        self.troop_label.text = f"Troops {t_val:g}x"
+
+    def _update_speed_buttons(self) -> None:
+        curr_speed = self.state.profile.live.speed
+        for s, btn in self.speed_buttons.items():
+            if s == curr_speed:
+                btn.props(
+                    remove="flat text-color=slate-400",
+                    add="unelevated color=primary text-color=white",
+                )
+            else:
+                btn.props(
+                    remove="unelevated color=primary text-color=white",
+                    add="flat text-color=slate-400",
+                )
+
+    def _set_speed(self, speed: int) -> None:
+        try:
+            self.state.set_live(speed=speed)
+            self._update_speed_buttons()
+            from krmod.ui import main as ui_main
+
+            ui_main.refresh()
+        except ProfileError as exc:
+            ui.notify(str(exc), color="negative")

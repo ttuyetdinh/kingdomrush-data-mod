@@ -112,9 +112,8 @@ def stale_changes(profile: Profile, tree: BalanceTree) -> list[KeyPath]:
     return stale
 
 
-def _slug(name: str) -> str:
+def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "profile"
-
 
 def _clean_name(name: str) -> str:
     if not isinstance(name, str) or not name.strip():
@@ -289,7 +288,7 @@ class ProfileStore:
         key = name.lower()
         if key in self._profiles and key != own_key:
             raise ProfileError(f"profile {name!r} already exists")
-        path = self.dir / f"{_slug(name)}.json"
+        path = self.dir / f"{slug(name)}.json"
         if path.name == _ACTIVE_FILE:
             raise ProfileError(f"profile name {name!r} is reserved")
         if path.exists() and not (own_key is not None and self._files.get(own_key) == path):
@@ -306,7 +305,7 @@ class ProfileStore:
 
     def _add_default(self) -> None:
         profile = Profile(_DEFAULT_NAME)
-        path = self._free_path(_slug(_DEFAULT_NAME))
+        path = self._free_path(slug(_DEFAULT_NAME))
         _atomic_write_json(path, _to_json(profile))
         self._profiles[_DEFAULT_NAME.lower()] = profile
         self._files[_DEFAULT_NAME.lower()] = path
@@ -371,7 +370,7 @@ class ProfileStore:
         recreate = len(self._profiles) == 1
         if recreate:
             # Write the replacement Default first so a failure leaves the store intact.
-            new_path = self._free_path(_slug(_DEFAULT_NAME), reuse=path)
+            new_path = self._free_path(slug(_DEFAULT_NAME), reuse=path)
             _atomic_write_json(new_path, _to_json(Profile(_DEFAULT_NAME)))
             if new_path != path:
                 try:
