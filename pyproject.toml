@@ -9,7 +9,7 @@ requires-python = ">=3.12"
 dependencies = ["nicegui[native]", "psutil", "Pillow"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio"]
+dev = ["pytest", "pytest-asyncio", "pyinstaller"]
 
 [tool.setuptools.packages.find]
 include = ["krmod*"]
