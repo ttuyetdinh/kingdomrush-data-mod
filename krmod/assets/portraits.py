@@ -184,6 +184,16 @@ def _read_all_frames(paths: GamePaths, exe: zipfile.ZipFile) -> dict[str, dict[s
     return frames
 
 
+def _remove_flat_cache(cache_dir: Path) -> None:
+    """Delete the PNGs of the old shared cache (directly in cache/portraits, before it was
+    split per game folder); the per-folder subdirectories are left alone."""
+    for old in (Path(cache_dir) / "portraits").glob("*.png"):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+
 def build_portrait_cache(paths: GamePaths) -> int:
     """Write every missing portrait PNG under paths.portraits_dir; return how many were written.
 
@@ -193,6 +203,7 @@ def build_portrait_cache(paths: GamePaths) -> int:
     """
     out_dir = paths.portraits_dir
     written = 0
+    _remove_flat_cache(paths.cache_dir)
     try:
         with zipfile.ZipFile(paths.exe) as exe:
             wanted = _wanted(_read_all_frames(paths, exe))

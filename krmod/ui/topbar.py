@@ -1,7 +1,7 @@
 """Top bar component: app title, tabs, self-check, profile selector and change count."""
 from __future__ import annotations
 
-from typing import Callable
+from typing import Awaitable, Callable
 
 from nicegui import ui
 
@@ -20,7 +20,7 @@ class TopBar:
         state: AppState,
         on_tab_change: Callable[[str], None],
         on_profile_change: Callable[[], None],
-        on_game_dir: Callable[[str], bool],
+        on_game_dir: Callable[[str], Awaitable[bool]],
     ) -> None:
         self.state = state
         self.on_tab_change = on_tab_change
@@ -182,7 +182,7 @@ class TopBar:
 
     def _build_dialogs(self) -> None:
         # Game folder dialog
-        with ui.dialog() as self.game_dialog, ui.card().classes("p-4 min-w-[440px] gap-2"):
+        with ui.dialog().mark("game-dialog") as self.game_dialog, ui.card().classes("p-4 min-w-[440px] gap-2"):
             ui.label("Game folder").classes("text-lg font-bold")
             ui.label(str(self.state.paths.game_dir)).classes(
                 "text-xs text-slate-600 font-mono break-all"
@@ -240,9 +240,11 @@ class TopBar:
     def _open_game_dialog(self) -> None:
         self.game_dialog.open()
 
-    def _do_game_dir(self, text: str) -> None:
-        if self.on_game_dir(text):
+    async def _do_game_dir(self, text: str) -> bool:
+        ok = await self.on_game_dir(text)
+        if ok:
             self.game_dialog.close()
+        return ok
 
     def _open_new_dialog(self) -> None:
         self.new_name_input.value = ""

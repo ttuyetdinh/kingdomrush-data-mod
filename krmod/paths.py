@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 EXE_NAME = "Kingdom Rush Genesis.exe"
@@ -63,7 +64,7 @@ class GamePaths:
     cache_dir: Path
     mod_template_dir: Path
 
-    @property
+    @cached_property
     def portraits_dir(self) -> Path:
         """Portrait cache of this game folder; every folder has its own, so switching is safe."""
         key = hashlib.sha1(str(self.game_dir.resolve()).lower().encode("utf-8")).hexdigest()[:12]

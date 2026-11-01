@@ -5,6 +5,7 @@ from PIL import Image
 
 from krmod.assets import portraits
 from krmod.assets.portraits import build_portrait_cache, portrait_for
+from krmod.paths import GamePaths
 
 
 @pytest.fixture(scope="module")
@@ -104,3 +105,16 @@ def test_decode_failure_does_not_raise_and_skips_only_that_card(game_paths, tmp_
 def test_unreadable_exe_returns_zero(game_paths, tmp_path):
     paths = dataclasses.replace(game_paths, exe=tmp_path / "missing.exe", cache_dir=tmp_path)
     assert build_portrait_cache(paths) == 0
+
+
+def test_old_flat_cache_is_removed_but_folder_caches_stay(tmp_path):
+    paths = GamePaths.for_game_dir(tmp_path / "game", tmp_path / "repo")  # no exe: nothing is built
+    flat = paths.cache_dir / "portraits"
+    flat.mkdir(parents=True)
+    (flat / "towers__archers.png").write_bytes(b"old")
+    other = flat / "0123456789ab"
+    other.mkdir()
+    (other / "towers__archers.png").write_bytes(b"keep")
+    assert build_portrait_cache(paths) == 0
+    assert not (flat / "towers__archers.png").exists()
+    assert (other / "towers__archers.png").read_bytes() == b"keep"

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from nicegui import ui
+from nicegui import run, ui
 
 from krmod.assets.portraits import portrait_for
 from krmod.gamedata.reader import ReaderError
@@ -85,7 +85,9 @@ def refresh() -> None:
         _cards_col.refresh()
     if _current_tab == "Rules":
         rerender_right()
-def use_game_folder(text: str) -> bool:
+
+
+async def use_game_folder(text: str) -> bool:
     """Validate and read a chosen game folder, save it, then reload the page so it shows the editor.
 
     With an active state this switches it to the new folder (profile and changes are kept);
@@ -99,7 +101,11 @@ def use_game_folder(text: str) -> bool:
         ui.notify("Enter the path of the game folder.", color="negative")
         return False
     try:
-        paths, tree, index = open_game_dir(Path(raw).expanduser().resolve(), repo_dir)
+        # Reading the balance data takes a moment: keep it off the event loop.
+        loaded = await run.io_bound(open_game_dir, Path(raw).expanduser().resolve(), repo_dir)
+        if loaded is None:  # the app is shutting down
+            return False
+        paths, tree, index = loaded
         save_game_dir_setting(repo_dir, paths.game_dir)
     except (GameNotFoundError, ReaderError, OSError) as exc:
         ui.notify(str(exc), color="negative")
@@ -123,7 +129,7 @@ def _render_error(error_msg: str) -> None:
             note = gamefolder.env_override_note()
             if note:
                 ui.label(note).classes("text-xs text-amber-700")
-            gamefolder.render_chooser("", use_game_folder)
+            gamefolder.render_chooser(str((_repo_dir or default_repo_dir()).parent), use_game_folder)
 
 
 def _render_shell(state: AppState) -> None:

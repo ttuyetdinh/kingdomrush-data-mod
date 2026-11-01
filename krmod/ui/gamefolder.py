@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from typing import Callable
+from typing import Awaitable, Callable
 
 from nicegui import app, ui
 
@@ -29,9 +29,14 @@ def env_override_note() -> str | None:
     return None
 
 
-def render_chooser(initial: str, on_use: Callable[[str], object]) -> None:
+def render_chooser(initial: str, on_use: Callable[[str], Awaitable[bool]]) -> None:
     """Choose button plus path input. The input is shown at once without a native window
-    and after a cancelled or failed pick with one."""
+    and after a cancelled or failed pick with one.
+
+    on_use gets the folder text and returns whether it was accepted (the page then reloads).
+    While it runs the controls are disabled and the "Use this folder" button shows a spinner.
+    """
+    busy = False
     with ui.column().classes("w-full gap-2"):
         input_row = ui.row().classes("w-full items-center gap-2 flex-nowrap")
         input_row.visible = app.native.main_window is None
@@ -41,20 +46,42 @@ def render_chooser(initial: str, on_use: Callable[[str], object]) -> None:
                 .props("outlined dense")
                 .classes("flex-1")
                 .mark("game-dir-input")
-                .on("keydown.enter", lambda: on_use(path_input.value or ""))
+                .on("keydown.enter", lambda: use(path_input.value or ""))
             )
-            ui.button("Use this folder", on_click=lambda: on_use(path_input.value or "")).props(
+            use_button = ui.button("Use this folder", on_click=lambda: use(path_input.value or "")).props(
                 "unelevated dense color=primary no-caps"
             ).mark("btn-use-game-folder")
-
-        async def choose() -> None:
-            chosen = await pick_folder(path_input.value or initial)
-            if chosen:
-                path_input.value = chosen
-                on_use(chosen)
-            else:
-                input_row.visible = True
-
-        ui.button("Choose game folder", icon="folder_open", on_click=choose).props(
+        choose_button = ui.button("Choose game folder", icon="folder_open", on_click=lambda: choose()).props(
             "unelevated no-caps color=primary"
         ).mark("btn-choose-game-folder")
+
+    def set_busy(on: bool) -> None:
+        nonlocal busy
+        busy = on
+        if on:
+            use_button.props(add="loading")
+        else:
+            use_button.props(remove="loading")
+        choose_button.set_enabled(not on)
+        path_input.set_enabled(not on)
+
+    async def use(text: str) -> None:
+        if busy:
+            return
+        set_busy(True)
+        accepted = False
+        try:
+            accepted = bool(await on_use(text))
+        finally:
+            if not accepted:  # on success the page reloads, so keep the controls locked
+                set_busy(False)
+
+    async def choose() -> None:
+        if busy:
+            return
+        chosen = await pick_folder(path_input.value or initial)
+        if chosen:
+            path_input.value = chosen
+            await use(chosen)
+        else:
+            input_row.visible = True

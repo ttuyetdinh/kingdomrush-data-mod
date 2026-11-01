@@ -127,4 +127,5 @@ def test_portraits_dir_differs_per_game_folder(tmp_path):
     a = GamePaths.for_game_dir(tmp_path / "a", tmp_path / "repo")
     b = GamePaths.for_game_dir(tmp_path / "b", tmp_path / "repo")
     assert a.portraits_dir != b.portraits_dir
+    assert a.portraits_dir is a.portraits_dir  # computed once per GamePaths
     assert a.portraits_dir.parent == b.portraits_dir.parent == tmp_path / "repo" / "cache" / "portraits"
