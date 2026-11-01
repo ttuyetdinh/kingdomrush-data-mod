@@ -62,3 +62,39 @@ def test_originals_recorded_once_across_repeated_changes(harness):
     harness.write_data([])
     harness.run_level()
     assert harness.lua("return BAL.towers.archers.price[1]") == "70"
+
+
+def test_util_missing_logs_error_and_truncates(harness):
+    harness.lua(BAL)
+    harness.write_data([(("towers", "archers", "price", 1), 7)])
+    harness.run_level()
+    assert "applied 1 changes" in harness.log()
+    (harness.mods_dir / "kr_mod" / "util.lua").unlink()
+    harness.run_level()
+    log = harness.log()
+    assert "error util" in log
+    assert "applied" not in log
+    assert harness.lua("return tostring(RESULT)") == "true"
+
+
+def test_find_balance_error_is_contained(harness):
+    harness.lua(BAL)
+    harness.write_data([])
+    harness.lua("local real = debug.getinfo; debug.getinfo = function() error('boom') end; BAL_RESTORE = real")
+    try:
+        harness.run_level()
+    finally:
+        harness.lua("debug.getinfo = BAL_RESTORE")
+    assert "error find_balance" in harness.log() and "boom" in harness.log()
+    assert harness.lua("return tostring(RESULT)") == "true"
+
+
+def test_love_filesystem_missing_is_contained(harness):
+    harness.lua(BAL)
+    harness.write_data([])
+    harness.lua("LOVE_SAVED = love; love = nil")
+    try:
+        harness.run_level()
+    finally:
+        harness.lua("love = LOVE_SAVED")
+    assert harness.lua("return tostring(RESULT)") == "true"

@@ -4,11 +4,21 @@
 -- into the game; problems go to mods/kr_mod_log.txt.
 local DEFAULT_SPEED_KEYS = { "f5", "f6", "f7" }
 
-local function main(found, stats)
-  local ok_base, base = pcall(love.filesystem.getSourceBaseDirectory)
-  if not ok_base or type(base) ~= "string" then base = "." end
-  base = base:gsub("\\", "/")
+-- Problems found before util.lua (and so the log) is available; flushed by main.
+local early = {}
 
+-- Truncate the log and write one line, without util.lua. Never raises.
+local function fallback_log(base, line)
+  pcall(function()
+    local f = io.open(base .. "/mods/kr_mod_log.txt", "w")
+    if f then
+      f:write(line, "\n")
+      f:close()
+    end
+  end)
+end
+
+local function main(base, found, stats)
   if type(KRMOD) ~= "table" then
     KRMOD = {
       installed = {},
@@ -23,11 +33,17 @@ local function main(found, stats)
   K.base = base
 
   local ok_util, util = pcall(dofile, base .. "/mods/kr_mod/util.lua")
-  if not ok_util or type(util) ~= "table" then return end
+  if ok_util and type(util) ~= "table" then
+    ok_util, util = false, "util.lua did not return a table"
+  end
+  if not ok_util then
+    fallback_log(base, "error util: " .. tostring(util))
+    return
+  end
 
   util.log_open(base .. "/mods/kr_mod_log.txt")
   local log = util.log
-  if not ok_base then log("error base: love.filesystem.getSourceBaseDirectory failed") end
+  for _, line in ipairs(early) do log(line) end
 
   local function step(name, fn)
     local ok, err = pcall(fn)
@@ -86,23 +102,42 @@ local function main(found, stats)
   end
 end
 
--- The stack search must run close to the caller (it scans a fixed number of levels
--- up), so it happens here in the chunk body, not inside main's nested pcalls.
-local stats
+local base = "."
 do
-  local ok_base, base = pcall(love.filesystem.getSourceBaseDirectory)
-  if ok_base and type(base) == "string" then
-    local ok, mod = pcall(dofile, base:gsub("\\", "/") .. "/mods/kr_mod/stats.lua")
-    if ok and type(mod) == "table" then stats = mod end
+  local ok, value = pcall(function() return love.filesystem.getSourceBaseDirectory() end)
+  if ok and type(value) == "string" then
+    base = value:gsub("\\", "/")
+  else
+    early[#early + 1] = "error base: love.filesystem.getSourceBaseDirectory failed"
   end
 end
-local found = stats and stats.find_balance()
 
-local ok, err = pcall(main, found, stats)
+-- The stack search must run close to the caller (it scans a fixed number of levels
+-- up), so it happens here in the chunk body, not inside main's nested pcalls.
+local stats, found
+do
+  local ok, mod = pcall(dofile, base .. "/mods/kr_mod/stats.lua")
+  if ok and type(mod) == "table" then
+    stats = mod
+    local ok_find, result = pcall(stats.find_balance)
+    if ok_find then
+      found = result
+    else
+      early[#early + 1] = "error find_balance: " .. tostring(result)
+    end
+  else
+    early[#early + 1] = "error stats: " .. tostring(mod)
+  end
+end
+
+local ok, err = pcall(main, base, found, stats)
 if not ok then
   pcall(function()
-    local f = io.open("mods/kr_mod_log.txt", "a")
-    if f then f:write("error loader: " .. tostring(err) .. "\n") f:close() end
+    local f = io.open(base .. "/mods/kr_mod_log.txt", "a")
+    if f then
+      f:write("error loader: " .. tostring(err) .. "\n")
+      f:close()
+    end
   end)
 end
 return true
