@@ -179,3 +179,10 @@ async def test_zero_original_leaves_at_zero(user):
     user.find(marker="row-slider-ultimate-gold_pig-armor").trigger("change", 1.0)
     cell = list(user.find(marker=f"cell-{p_str}").elements)[0]
     assert cell.value == "0"
+
+
+async def test_sniper_card_opens_without_error(user):
+    await user.open("/")
+    user.find("Sniper").click()
+    await user.should_see("Sniper")
+    await user.should_see("Max range")

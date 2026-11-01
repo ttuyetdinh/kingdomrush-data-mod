@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import decimal
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Sequence
 
@@ -47,14 +48,19 @@ def original_decimals(x: float | int) -> int:
 def scale(original: float, pct: float) -> float:
     """original x pct%, half-up (away from zero). Whole originals give whole results,
     decimal originals keep max(2, original decimals) places."""
-    d_orig = Decimal(str(round(float(original), 6))).normalize()
-    if d_orig == d_orig.to_integral_value():
-        step = _WHOLE
-    else:
-        places = max(2, original_decimals(original))
-        step = Decimal(10) ** -places
-    exact = d_orig * _dec(pct) / _HUNDRED
-    return float(exact.quantize(step, rounding=ROUND_HALF_UP))
+    if float(pct) == 100.0:
+        return original
+    with decimal.localcontext(decimal.Context(prec=400)):
+        if abs(original) >= 1e15:
+            return float(Decimal(str(original)) * Decimal(str(pct)) / _HUNDRED)
+        d_orig = Decimal(str(round(float(original), 6))).normalize()
+        if d_orig == d_orig.to_integral_value():
+            step = _WHOLE
+        else:
+            places = max(2, original_decimals(original))
+            step = Decimal(10) ** -places
+        exact = d_orig * _dec(pct) / _HUNDRED
+        return float(exact.quantize(step, rounding=ROUND_HALF_UP))
 
 
 def common_pct(pairs: Sequence[tuple[float, float]]) -> float | None:
@@ -63,11 +69,12 @@ def common_pct(pairs: Sequence[tuple[float, float]]) -> float | None:
     if not nonzero:
         return 100.0
     o_ref, c_ref = max(nonzero, key=lambda oc: abs(oc[0]))
-    candidate = (_dec(c_ref) / _dec(o_ref) * _HUNDRED).quantize(_TENTH, rounding=ROUND_HALF_UP)
-    pct = float(candidate)
-    if all(scale(o, pct) == c for o, c in nonzero):
-        return pct
-    return None
+    with decimal.localcontext(decimal.Context(prec=400)):
+        candidate = (_dec(c_ref) / _dec(o_ref) * _HUNDRED).quantize(_TENTH, rounding=ROUND_HALF_UP)
+        pct = float(candidate)
+        if all(scale(o, pct) == c for o, c in nonzero):
+            return pct
+        return None
 
 
 def c2_range(originals: Sequence[float]) -> tuple[float, float]:

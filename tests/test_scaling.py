@@ -39,6 +39,18 @@ def test_scale_preserves_multi_decimal_precision():
     assert scale(0.015, 200) == 0.03
     assert scale(1.33, 50) == 0.67
     assert scale(62.400000000000006, 50) == 31.2
+    assert scale(1e99, 50) == 5e98
+
+
+def test_scale_100_returns_original_unchanged():
+    for o in (62.400000000000006, 0.3999999999999999, 0.19999999999999996, 70):
+        scaled = scale(o, 100)
+        assert scaled == o and type(scaled) is type(o)
+        assert common_pct([(o, o)]) == 100
+
+
+def test_common_pct_large_values():
+    assert common_pct([(1e99, 1e99)]) == 100
 
 
 def test_original_decimals():

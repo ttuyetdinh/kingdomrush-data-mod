@@ -301,3 +301,14 @@ def test_locked_level_large_original_exact(state):
     assert state.original(p) == 5666.0
     state.set_level(p, 5667, locked_row=row)
     assert state.current(p) == 5667
+
+
+def test_scale_row_noise_original_roundtrip_zero_changes(state):
+    row = next(
+        r for r in state.rows("towers/kr1/engineers")
+        if any(state.original(p) == 62.400000000000006 for p in r.cells if p)
+    )
+    state.scale_row(row, 50.0)
+    assert state.change_count() > 0
+    state.scale_row(row, 100.0)
+    assert state.change_count() == 0
