@@ -70,7 +70,18 @@ async def test_missing_levels_blank(user):
     await user.open("/")
     user.find("Knights").click()
     # Missing levels must be blank, without placeholder '-' labels:
-    await user.should_not_see(kind=ui.label, content="-")
+    labels = [e for e in user._gather_elements(None, ui.label, None, None) if e.text == "-"]
+    assert len(labels) == 0
+
+
+async def test_row_label_tooltips_show_raw_id(user):
+    await user.open("/")
+    user.find("Knights").click()
+    await user.should_see("Cd mult (info text)")
+    tooltips = [e.text for e in user._gather_elements(None, ui.tooltip, None, None)]
+    assert "skill_c.s_cd_mult" in tooltips
+    assert "skill_c.cd_mult" in tooltips
+    assert "price" in tooltips
 
 async def test_precision_formatting_and_c2_step(user):
     await user.open("/")

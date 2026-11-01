@@ -25,12 +25,15 @@ class StatRow:
 
 def friendly_label(key: str) -> str:
     words = str(key).split("_")
-    if len(words) > 1 and words[0] == "s":
+    is_info = len(words) > 1 and words[0] == "s"
+    if is_info:
         words = words[1:]
     suffix = ""
     if len(words) > 1 and words[-1] in ("max", "min"):
         suffix = f" ({words[-1]})"
         words = words[:-1]
+    if is_info:
+        suffix = f"{suffix} (info text)"
     words = ["HP" if w == "hp" else w for w in words]
     text = " ".join(words)
     return text[:1].upper() + text[1:] + suffix

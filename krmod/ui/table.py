@@ -240,13 +240,15 @@ def render_card(state: AppState, card_id: str) -> None:
                                     ).mark(f"row-expand-{row_slug}").on("click", make_toggle()):
                                         ch_lbl = ui.label("▸").classes("text-slate-400 font-mono text-xs w-3")
                                         chevron_ref[0] = ch_lbl
-                                        ui.label(row.label).classes("font-medium text-slate-800")
+                                        stat_lbl = ui.label(row.label).classes("font-medium text-slate-800")
+                                        stat_lbl.tooltip(row.id)
                                         if alias_note:
                                             ui.label(alias_note).classes("text-xs text-amber-600 italic ml-1")
                                 else:
                                     with ui.row().classes("items-center gap-1.5"):
                                         ui.label(" ").classes("w-3")
-                                        ui.label(row.label).classes("font-medium text-slate-600")
+                                        stat_lbl = ui.label(row.label).classes("font-medium text-slate-600")
+                                        stat_lbl.tooltip(row.id)
                                         if alias_note:
                                             ui.label(alias_note).classes("text-xs text-amber-600 italic ml-1")
 
@@ -270,8 +272,6 @@ def render_card(state: AppState, card_id: str) -> None:
                                         else:
                                             cell_ctrl = CellController(state, p, on_change=on_mutation)
                                             all_cells.append(cell_ctrl)
-                                    else:
-                                        pass
 
                             # Row slider column:
                             with ui.element("td").classes("py-1.5 px-3 text-right"):

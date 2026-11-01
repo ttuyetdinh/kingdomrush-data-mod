@@ -12,7 +12,6 @@ PCT_MAX = 300.0
 PCT_MID = 100.0
 
 _WHOLE = Decimal(1)
-_CENTS = Decimal("0.01")
 _TENTH = Decimal("0.1")
 _HUNDRED = Decimal(100)
 
@@ -38,8 +37,8 @@ def _dec(x: float | int) -> Decimal:
 
 
 def original_decimals(x: float | int) -> int:
-    """Number of decimal places in x via Decimal(str(x)). Whole numbers return 0."""
-    d = _dec(x)
+    """Number of decimal places after normalizing to at most 6 decimals. Whole numbers return 0."""
+    d = Decimal(str(round(float(x), 6))).normalize()
     if d == d.to_integral_value():
         return 0
     return -d.as_tuple().exponent
@@ -48,14 +47,15 @@ def original_decimals(x: float | int) -> int:
 def scale(original: float, pct: float) -> float:
     """original x pct%, half-up (away from zero). Whole originals give whole results,
     decimal originals keep max(2, original decimals) places."""
-    exact = _dec(original) * _dec(pct) / _HUNDRED
-    d_orig = _dec(original)
+    d_orig = Decimal(str(round(float(original), 6))).normalize()
     if d_orig == d_orig.to_integral_value():
         step = _WHOLE
     else:
         places = max(2, original_decimals(original))
         step = Decimal(10) ** -places
+    exact = d_orig * _dec(pct) / _HUNDRED
     return float(exact.quantize(step, rounding=ROUND_HALF_UP))
+
 
 def common_pct(pairs: Sequence[tuple[float, float]]) -> float | None:
     """Percent that maps every nonzero original to its current value, or None if mixed."""

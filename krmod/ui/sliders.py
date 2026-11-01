@@ -36,7 +36,7 @@ def format_val(val: float | int | str | bool) -> str:
         if vf.is_integer():
             return str(int(vf))
         places = max(2, original_decimals(vf))
-        return f"{vf:.{places}f}"
+        return f"{round(vf, 6):.{places}f}"
     return str(val)
 
 

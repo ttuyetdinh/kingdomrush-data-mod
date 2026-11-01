@@ -5,6 +5,7 @@ from krmod.model.scaling import (
     PCT_MIN,
     c2_range,
     common_pct,
+    original_decimals,
     pct_to_track,
     scale,
     track_to_pct,
@@ -37,7 +38,16 @@ def test_scale_preserves_multi_decimal_precision():
     assert scale(0.002, 50) == 0.001
     assert scale(0.015, 200) == 0.03
     assert scale(1.33, 50) == 0.67
+    assert scale(62.400000000000006, 50) == 31.2
 
+
+def test_original_decimals():
+    assert original_decimals(62.400000000000006) == 1
+    assert original_decimals(0.3999999999999999) == 1
+    assert original_decimals(0.002) == 3
+    assert original_decimals(0.0208) == 4
+    assert original_decimals(70.0) == 0
+    assert original_decimals(70) == 0
 
 def test_scale_whole_rounds_away_from_zero():
     assert scale(5, 50) == 3
