@@ -86,27 +86,23 @@ class CardsColumn:
 
         tile = ui.row().classes(
             "w-full items-center p-2 rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 cursor-pointer transition-all gap-2.5 bg-white shadow-sm"
-        )
+        ).mark(f"card-{card.id} {card.title}")
         tile.on("click", lambda _e, cid=card_id: self.on_card_click(cid))
 
         with tile:
             # Portrait or initials fallback
             portrait_path = portrait_for(card.id, self.state.paths.cache_dir)
             if portrait_path and portrait_path.is_file():
-                img = ui.image(str(portrait_path)).classes("w-10 h-10 rounded object-cover shadow-xs")
-                img.on("click", lambda _e, cid=card_id: self.on_card_click(cid))
+                ui.image(str(portrait_path)).classes("w-10 h-10 rounded object-cover shadow-xs")
             else:
                 with ui.element("div").classes(
                     "w-10 h-10 rounded bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-xs shrink-0"
                 ):
-                    fallback_lbl = ui.label(card.title[:2].upper())
-                    fallback_lbl.on("click", lambda _e, cid=card_id: self.on_card_click(cid))
+                    ui.label(card.title[:2].upper())
 
             # Card title
-            title_lbl = ui.label(card.title).classes("text-sm font-semibold text-slate-800 flex-1 truncate")
-            title_lbl.on("click", lambda _e, cid=card_id: self.on_card_click(cid))
+            ui.label(card.title).classes("text-sm font-semibold text-slate-800 flex-1 truncate")
 
             # Dot indicator for changed values
             if has_changes:
-                dot = ui.label("●").classes("text-amber-500 font-bold text-sm")
-                dot.on("click", lambda _e, cid=card_id: self.on_card_click(cid))
+                ui.label("●").classes("text-amber-500 font-bold text-sm")

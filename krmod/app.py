@@ -27,6 +27,19 @@ from krmod.state import AppState  # noqa: E402
 from krmod.ui.main import build_page  # noqa: E402
 
 
+def load_state(repo_dir: Path | None = None) -> tuple[AppState | None, str | None]:
+    """Locate game paths, read balance, build index and profile store."""
+    try:
+        paths = GamePaths.locate(repo_dir=repo_dir)
+        threading.Thread(target=build_portrait_cache, args=(paths,), daemon=True).start()
+        tree = read_balance(paths)
+        index = GroupIndex.build(tree)
+        store = ProfileStore(paths.profiles_dir)
+        return AppState(paths, tree, index, store), None
+    except (GameNotFoundError, ReaderError) as exc:
+        return None, str(exc)
+
+
 def main() -> None:
     """Launch the KrGenesis Mod application."""
     webview_storage = _cache_dir / "webview"
@@ -34,20 +47,8 @@ def main() -> None:
     nicegui_app.native.start_args["storage_path"] = str(webview_storage)
     nicegui_app.native.start_args["private_mode"] = False
 
-    state: AppState | None = None
-    error_msg: str | None = None
-
-    try:
-        paths = GamePaths.locate()
-        threading.Thread(target=build_portrait_cache, args=(paths,), daemon=True).start()
-        tree = read_balance(paths)
-        index = GroupIndex.build(tree)
-        store = ProfileStore(paths.profiles_dir)
-        state = AppState(paths, tree, index, store)
-    except (GameNotFoundError, ReaderError) as exc:
-        error_msg = str(exc)
+    state, error_msg = load_state()
     build_page(state, error_msg)
-
     ui.run(
         native=True,
         reload=False,

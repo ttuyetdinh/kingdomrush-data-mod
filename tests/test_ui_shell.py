@@ -1,6 +1,7 @@
 import pytest
 from nicegui.testing.user_simulation import user_simulation
 
+from krmod.app import load_state
 from krmod.ui import main as ui_main
 
 
@@ -39,13 +40,21 @@ async def test_new_profile(user):
 
 
 @pytest.fixture
-async def user_error(tmp_path):
+async def user_error(tmp_path, monkeypatch):
+    monkeypatch.delenv("KRMOD_GAME_DIR", raising=False)
+    fake_repo = tmp_path / "fake_repo"
+    fake_repo.mkdir()
+    state, err = load_state(repo_dir=fake_repo)
+    assert state is None
+    assert err is not None
+    assert "Kingdom Rush Genesis.exe" in err
+
     error_file = tmp_path / "ui_error_main.py"
     error_file.write_text(
         "from nicegui import core, ui\n"
         "from krmod.ui.main import build_page\n"
         "core.reset()\n"
-        'build_page(None, "Game file not found: Kingdom Rush Genesis.exe")\n'
+        f"build_page(None, {repr(err)})\n"
         "ui.run()\n",
         encoding="utf-8",
     )
@@ -57,6 +66,61 @@ async def test_startup_error_page(user_error):
     await user_error.open("/")
     await user_error.should_see("Kingdom Rush Genesis.exe")
 
+
+def test_load_state_missing_exe(tmp_path, monkeypatch):
+    monkeypatch.delenv("KRMOD_GAME_DIR", raising=False)
+    fake_repo = tmp_path / "kingdomrush-data-mod"
+    fake_repo.mkdir()
+    state, err = load_state(repo_dir=fake_repo)
+    assert state is None
+    assert err is not None
+    assert "Kingdom Rush Genesis.exe" in err
+
+
+def test_load_state_non_zip_exe(tmp_path, monkeypatch):
+    monkeypatch.delenv("KRMOD_GAME_DIR", raising=False)
+    game_dir = tmp_path / "game"
+    repo_dir = game_dir / "kingdomrush-data-mod"
+    game_dir.mkdir()
+    repo_dir.mkdir()
+    (game_dir / "Kingdom Rush Genesis.exe").write_text("not a valid zip", encoding="utf-8")
+    (game_dir / "lua51.dll").write_bytes(b"dummy")
+    state, err = load_state(repo_dir=repo_dir)
+    assert state is None
+    assert err is not None
+    assert "Cannot read" in err
+
+
+async def test_corrupt_profile_warning_shown(tmp_path):
+    test_profiles = tmp_path / "test_profiles"
+    test_profiles.mkdir()
+    (test_profiles / "broken.json").write_text("{ corrupt json", encoding="utf-8")
+
+    main_file = tmp_path / "corrupt_profile_main.py"
+    main_file.write_text(
+        "import dataclasses\n"
+        "from pathlib import Path\n"
+        "from nicegui import core, ui\n"
+        "from krmod.gamedata.reader import read_balance\n"
+        "from krmod.model.grouping import GroupIndex\n"
+        "from krmod.paths import GamePaths\n"
+        "from krmod.profiles import ProfileStore\n"
+        "from krmod.state import AppState\n"
+        "from krmod.ui.main import build_page\n"
+        "core.reset()\n"
+        "paths = GamePaths.locate()\n"
+        f"paths = dataclasses.replace(paths, profiles_dir=Path({repr(str(test_profiles))}))\n"
+        "tree = read_balance(paths)\n"
+        "index = GroupIndex.build(tree)\n"
+        "store = ProfileStore(paths.profiles_dir)\n"
+        "state = AppState(paths, tree, index, store)\n"
+        "build_page(state, None)\n"
+        "ui.run()\n",
+        encoding="utf-8",
+    )
+    async with user_simulation(main_file=main_file) as u:
+        await u.open("/")
+        await u.should_see("broken.json")
 
 async def test_tab_switch_shows_tab_cards(user):
     await user.open("/")

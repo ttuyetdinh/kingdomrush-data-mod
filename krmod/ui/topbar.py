@@ -46,14 +46,10 @@ class TopBar:
                     f"{check.placed}/{check.total} values placed"
                 ).classes("text-xs text-slate-400 font-mono")
 
-                has_warning = (
-                    bool(check.unplaced)
-                    or bool(self.state.stale())
-                    or bool(self.state.store.load_warnings)
-                )
+                has_warning, warn_text = self._warning_summary()
                 self.warning_chip = ui.chip(
-                    "Warning", icon="warning", color="amber-7"
-                ).props("dense outline text-color=amber-4").classes("text-xs")
+                    warn_text, icon="warning", color="amber-7"
+                ).props("dense outline text-color=amber-4").classes("text-xs").mark("warning-chip")
                 self.warning_chip.visible = has_warning
 
             # Center section: Tab pills
@@ -88,11 +84,21 @@ class TopBar:
         count = self.state.change_count()
         return f"{count} change" if count == 1 else f"{count} changes"
 
-    def _menu_item(self, text: str, on_click: Callable[[], None]) -> ui.menu_item:
-        item = ui.menu_item(text, on_click=on_click)
-        for child in item.default_slot.children:
-            child.on("click", lambda _e, fn=on_click: fn())
-        return item
+    def _warning_summary(self) -> tuple[bool, str]:
+        check = self.state.index.self_check()
+        parts: list[str] = []
+        if self.state.store.load_warnings:
+            files = [w.split(":")[0].strip() for w in self.state.store.load_warnings]
+            parts.append(f"load warnings: {', '.join(files)}")
+        if check.unplaced:
+            parts.append(f"{len(check.unplaced)} unplaced")
+        stale_count = len(self.state.stale())
+        if stale_count:
+            parts.append(f"{stale_count} stale")
+
+        if not parts:
+            return False, ""
+        return True, f"Warning ({'; '.join(parts)})"
 
     def _build_profile_menu(self) -> None:
         self.profile_menu.clear()
@@ -100,21 +106,23 @@ class TopBar:
             # List existing profiles
             for name in self.state.profile_names():
                 is_active = name == self.state.profile.name
-                item = self._menu_item(
+                item = ui.menu_item(
                     name,
                     on_click=lambda n=name: self._switch_profile(n),
-                )
+                ).mark(f"profile-item-{name} {name}")
                 if is_active:
                     item.props("active")
 
             ui.separator()
-            self._menu_item("New", on_click=self._open_new_dialog)
-            self._menu_item("Duplicate", on_click=self._open_dup_dialog)
-            self._menu_item("Rename", on_click=self._open_rename_dialog)
-            self._menu_item("Delete", on_click=self._open_del_dialog)
+            ui.menu_item("New", on_click=self._open_new_dialog).mark("profile-new New")
+            ui.menu_item("Duplicate", on_click=self._open_dup_dialog).mark("profile-duplicate Duplicate")
+            ui.menu_item("Rename", on_click=self._open_rename_dialog).mark("profile-rename Rename")
+            ui.menu_item("Delete", on_click=self._open_del_dialog).mark("profile-delete Delete")
+
     def _switch_profile(self, name: str) -> None:
         try:
             self.state.switch_profile(name)
+            self.profile_menu.close()
             self.refresh()
             self.on_profile_change()
         except ProfileError as exc:
@@ -231,11 +239,8 @@ class TopBar:
     def refresh(self) -> None:
         check = self.state.index.self_check()
         self.self_check_label.text = f"{check.placed}/{check.total} values placed"
-        has_warning = (
-            bool(check.unplaced)
-            or bool(self.state.stale())
-            or bool(self.state.store.load_warnings)
-        )
+        has_warning, warn_text = self._warning_summary()
+        self.warning_chip.text = warn_text
         self.warning_chip.visible = has_warning
         self.change_label.text = self._change_text()
         self.profile_button.text = self.state.profile.name
