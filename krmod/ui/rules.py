@@ -13,7 +13,7 @@ from krmod.ui.sliders import live_slider
 
 def render(state: AppState) -> None:
     """Render Rules tab content in the right editor region."""
-    with ui.column().classes("w-full max-w-3xl p-6 gap-6"):
+    with ui.column().classes("w-full max-w-3xl p-6 gap-6 shrink-0"):
         # Header
         with ui.column().classes("gap-1"):
             ui.label("Rules & Global Settings").classes(

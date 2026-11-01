@@ -154,7 +154,7 @@ def render_card(state: AppState, card_id: str) -> None:
     with right:
         card_sliders = CardSliders(state, card_id, on_change=on_mutation)
 
-        with ui.column().classes("w-full overflow-x-auto"):
+        with ui.column().classes("w-full overflow-x-auto shrink-0"):
             with ui.element("table").classes("w-full border-collapse text-left text-sm"):
                 # Header:
                 with ui.element("thead"):

@@ -28,15 +28,16 @@ class CardsColumn:
         self._build()
 
     def _build(self) -> None:
-        self.container = ui.column().classes("w-80 h-full p-3 gap-2")
+        self.container = ui.column().classes("w-80 h-full p-0 gap-0 overflow-hidden min-h-0 flex-nowrap")
         with self.container:
-            self.search_input = (
-                ui.input(placeholder="Search…", on_change=lambda e: self.set_search(e.value or ""))
-                .props("outlined dense clearable")
-                .classes("w-full mb-1")
-                .mark("card-search")
-            )
-            self.cards_area = ui.column().classes("w-full flex-1 overflow-y-auto gap-3")
+            with ui.row().classes("w-full p-3 pb-2 shrink-0"):
+                self.search_input = (
+                    ui.input(placeholder="Search…", on_change=lambda e: self.set_search(e.value or ""))
+                    .props("outlined dense clearable")
+                    .classes("w-full")
+                    .mark("card-search")
+                )
+            self.cards_area = ui.column().classes("w-full flex-1 overflow-y-auto px-3 pb-3 gap-3 min-h-0")
             self._render_cards()
 
     def set_tab(self, tab: str) -> None:

@@ -33,8 +33,8 @@ def show_card(card_id: str) -> None:
     card = _active_state.index.card(card_id)
     right.clear()
     with right:
-        with ui.row().classes("items-center gap-4 mb-4"):
-            portrait = portrait_for(card.id, _active_state.paths.cache_dir)
+        portrait = portrait_for(card.id, _active_state.paths.cache_dir)
+        with ui.row().classes("items-center gap-4 mb-4 shrink-0"):
             if portrait and portrait.is_file():
                 ui.image(str(portrait)).classes("w-14 h-14 rounded-lg shadow-sm")
             else:
@@ -64,9 +64,10 @@ def rerender_right() -> None:
     else:
         right.clear()
         with right:
-            ui.label("Select a unit on the left to edit stats").classes(
-                "text-slate-400 italic mt-4"
-            )
+            with ui.column().classes("w-full h-full items-center justify-center text-center p-8"):
+                ui.label("Select a unit on the left to edit stats").classes(
+                    "text-slate-400 italic text-base"
+                )
 
 
 def refresh() -> None:
@@ -100,6 +101,11 @@ def _render_shell(state: AppState) -> None:
         info="#0284c7",
         warning="#d97706",
     )
+    # Style layout containers to prevent whole-page scrolling and enable independent scrolling
+    ui.query("html, body").classes("h-full overflow-hidden").style("height: 100%; overflow: hidden;")
+    ui.query(".q-page-container").classes("h-screen box-border overflow-hidden").style("height: 100vh; box-sizing: border-box; overflow: hidden;")
+    ui.query(".q-page").classes("h-full max-h-full overflow-hidden").style("height: 100%; max-height: 100%; overflow: hidden;")
+    ui.query(".nicegui-content").classes("h-full max-h-full p-0 gap-0 overflow-hidden").style("height: 100%; max-height: 100%; padding: 0; gap: 0; overflow: hidden;")
 
     def on_tab_change(tab: str) -> None:
         global _current_tab
@@ -118,19 +124,21 @@ def _render_shell(state: AppState) -> None:
     REGIONS["topbar_right"] = _topbar.topbar_right
 
     # Main content area (left cards column + right editor column)
-    with ui.element("div").classes("w-full flex-1 flex flex-row overflow-hidden"):
+    with ui.element("div").classes("w-full h-full flex flex-row overflow-hidden min-h-0"):
         # Left column
-        left_col = ui.column().classes("h-full border-r border-slate-200 bg-slate-50/50 p-0 overflow-hidden shrink-0")
+        left_col = ui.column().classes("h-full border-r border-slate-200 bg-slate-50/50 p-0 overflow-hidden shrink-0 min-h-0")
         REGIONS["left"] = left_col
         with left_col:
             _cards_col = CardsColumn(state, on_card_click=show_card)
 
         # Right editor column
-        right_col = ui.column().classes("flex-1 h-full p-6 overflow-y-auto bg-white")
+        right_col = ui.column().classes("flex-1 h-full p-6 overflow-y-auto bg-white min-h-0 [&>*]:shrink-0")
         REGIONS["right"] = right_col
         with right_col:
-            ui.label("Select a unit on the left to edit stats").classes("text-slate-400 italic mt-4")
-
+            with ui.column().classes("w-full h-full items-center justify-center text-center p-8"):
+                ui.label("Select a unit on the left to edit stats").classes(
+                    "text-slate-400 italic text-base"
+                )
     # Bottom bar container
     bottom_bar = ui.footer().classes("w-full items-center justify-between px-6 py-2 border-t border-slate-200 bg-slate-50 text-slate-800 shrink-0")
     REGIONS["bottom"] = bottom_bar
