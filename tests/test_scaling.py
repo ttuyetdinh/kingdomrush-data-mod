@@ -33,6 +33,11 @@ def test_track_round_trip(t):
 def test_scale(orig, pct, out):
     assert scale(orig, pct) == out
 
+def test_scale_preserves_multi_decimal_precision():
+    assert scale(0.002, 50) == 0.001
+    assert scale(0.015, 200) == 0.03
+    assert scale(1.33, 50) == 0.67
+
 
 def test_scale_whole_rounds_away_from_zero():
     assert scale(5, 50) == 3

@@ -5,7 +5,7 @@ from typing import Callable
 
 from nicegui import ui
 
-from krmod.model.rows import StatRow
+from krmod.model.rows import HERO_BARS_LABEL, StatRow
 from krmod.model.scaling import warn
 from krmod.model.values import KeyPath, decode_damage_type, path_str
 from krmod.state import AppState
@@ -39,11 +39,9 @@ class CellController:
                 .mark(f"warn-{p_str}")
             )
             w = warn(path, curr)
-            if w:
-                self.warn_icon.set_visibility(True)
-                self.warn_icon.tooltip(w)
-            else:
-                self.warn_icon.set_visibility(False)
+            with self.warn_icon:
+                self.warn_tooltip = ui.tooltip(w or "")
+            self.warn_icon.set_visibility(bool(w))
 
             self.orig_label = (
                 ui.label(format_val(orig))
@@ -113,11 +111,19 @@ class CellController:
             self.reset_btn.set_visibility(False)
 
         w = warn(self.path, curr)
+        self.warn_icon.set_visibility(bool(w))
         if w:
-            self.warn_icon.set_visibility(True)
-            self.warn_icon.tooltip(w)
-        else:
-            self.warn_icon.set_visibility(False)
+            self.warn_tooltip.set_text(w)
+
+
+def friendly_group_label(group: str) -> str:
+    """Format StatRow.group into friendly heading text."""
+    if not group:
+        return ""
+    if group == HERO_BARS_LABEL:
+        return HERO_BARS_LABEL
+    parts = [p.replace("_", " ").capitalize() for p in group.split(".")]
+    return " / ".join(parts) if len(parts) > 1 else parts[0]
 
 
 def render_card(state: AppState, card_id: str) -> None:
@@ -155,11 +161,14 @@ def render_card(state: AppState, card_id: str) -> None:
                     with ui.element("tr").classes(
                         "border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider"
                     ):
-                        ui.element("th").classes("py-2 px-3 text-left").text = "Stat"
+                        with ui.element("th").classes("py-2 px-3 text-left"):
+                            ui.label("Stat")
                         for i in range(max_levels):
                             col_title = f"Level {i + 1}" if max_levels > 1 else "Value"
-                            ui.element("th").classes("py-2 px-2 text-right").text = col_title
-                        ui.element("th").classes("py-2 px-3 text-right w-44").text = "Row slider"
+                            with ui.element("th").classes("py-2 px-2 text-right"):
+                                ui.label(col_title)
+                        with ui.element("th").classes("py-2 px-3 text-right w-44"):
+                            ui.label("Row slider")
 
                 # Body:
                 with ui.element("tbody"):
@@ -170,11 +179,12 @@ def render_card(state: AppState, card_id: str) -> None:
                         if row.group != last_group:
                             last_group = row.group
                             if row.group:
-                                grp_name = row.group.replace(".", " / ").replace("_", " ").title()
+                                grp_name = friendly_group_label(row.group)
                                 with ui.element("tr").classes("bg-slate-100/90 border-t border-b border-slate-200"):
-                                    ui.element("td").props(f"colspan={1 + max_levels + 1}").classes(
+                                    with ui.element("td").props(f"colspan={1 + max_levels + 1}").classes(
                                         "py-1 px-3 font-bold text-xs uppercase tracking-wider text-slate-600"
-                                    ).text = grp_name
+                                    ):
+                                        ui.label(grp_name)
 
                         row_slug = row.id.replace(" ", "-").replace(".", "-")
 
@@ -261,7 +271,7 @@ def render_card(state: AppState, card_id: str) -> None:
                                             cell_ctrl = CellController(state, p, on_change=on_mutation)
                                             all_cells.append(cell_ctrl)
                                     else:
-                                        ui.label("-").classes("text-slate-300 text-center")
+                                        pass
 
                             # Row slider column:
                             with ui.element("td").classes("py-1.5 px-3 text-right"):

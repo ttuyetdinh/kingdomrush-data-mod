@@ -1,6 +1,6 @@
 """User simulation tests for level table and sliders (Task 12)."""
+from nicegui import ui
 import pytest
-
 
 async def test_type_value_marks_changed(user):
     await user.open("/")
@@ -14,6 +14,9 @@ async def test_bad_text_reverts(user):
     user.find("Archers").click()
     user.find(marker="cell-towers.archers.price.1").clear().type("abc").trigger("keydown.enter")
     await user.should_see("Not a number")
+    c = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
+    assert c.value == "70"
+    await user.should_not_see(marker="orig-towers.archers.price.1")
 
 
 async def test_enum_read_only(user):
@@ -21,6 +24,7 @@ async def test_enum_read_only(user):
     user.find("Enemies").click()
     user.find("Demon lord").click()
     await user.should_see("Physical")
+    await user.should_not_see(marker="cell-enemies.demons.demon_lord.basic_attack.damage_type")
 
 
 async def test_reset_cell_reverts_value(user):
@@ -40,6 +44,46 @@ async def test_warning_shown_for_negative(user):
     cell = user.find(marker="cell-towers.archers.price.1")
     cell.clear().type("-10").trigger("keydown.enter")
     await user.should_see("Negative values can break the game.")
+
+
+async def test_warning_tooltip_not_duplicated(user):
+    await user.open("/")
+    user.find("Archers").click()
+    cell = user.find(marker="cell-towers.archers.price.1")
+    cell.clear().type("-10").trigger("keydown.enter")
+    cell.clear().type("-20").trigger("keydown.enter")
+    icon = list(user.find(marker="warn-towers.archers.price.1").elements)[0]
+    tooltips = [c for c in icon.default_slot.children if type(c).__name__ == "Tooltip"]
+    assert len(tooltips) == 1
+
+
+async def test_headers_and_groups_rendered(user):
+    await user.open("/")
+    user.find("Archers").click()
+    await user.should_see("Level 1")
+    await user.should_see("Level 4")
+    await user.should_see("Row slider")
+    await user.should_see("Skill a")
+
+
+async def test_missing_levels_blank(user):
+    await user.open("/")
+    user.find("Knights").click()
+    # Missing levels must be blank, without placeholder '-' labels:
+    await user.should_not_see(kind=ui.label, content="-")
+
+async def test_precision_formatting_and_c2_step(user):
+    await user.open("/")
+    user.find("Heroes").click()
+    user.find("Bolin").click()
+    # heroes.hero_bolin.skill_c.boss_hp_percentage has original 0.002
+    await user.should_see("0.002")
+    c = list(user.find(marker="cell-heroes.hero_bolin.skill_c.boss_hp_percentage").elements)[0]
+    assert c.value == "0.002"
+    # Open C2 panel and check step
+    user.find(marker="row-expand-skill_c-boss_hp_percentage").click()
+    sl = list(user.find(marker="c2-slider-heroes.hero_bolin.skill_c.boss_hp_percentage").elements)[0]
+    assert sl._props["step"] == 0.001
 
 
 async def test_c2_panel_toggle(user):

@@ -9,6 +9,7 @@ from krmod.model.rows import StatRow
 from krmod.model.scaling import (
     PCT_MID,
     c2_range,
+    original_decimals,
     pct_to_track,
     track_to_pct,
 )
@@ -27,14 +28,15 @@ def format_pct(pct: float | None) -> str:
 
 
 def format_val(val: float | int | str | bool) -> str:
-    """Format value for cell display: whole numbers as ints, decimals with 2 places."""
+    """Format value for cell display without losing precision."""
     if isinstance(val, bool):
         return str(val)
     if isinstance(val, (int, float)):
         vf = float(val)
         if vf.is_integer():
             return str(int(vf))
-        return f"{vf:.2f}"
+        places = max(2, original_decimals(vf))
+        return f"{vf:.{places}f}"
     return str(val)
 
 
@@ -182,12 +184,18 @@ class C2Panel:
     def _build(self) -> None:
         self.low, self.high = self.state.c2_range(self.row)
 
-        has_decimal = any(
-            self.state.original(p) != int(self.state.original(p))
-            for p in self.row.cells
-            if p is not None
+        max_dec = max(
+            (original_decimals(self.state.original(p)) for p in self.row.cells if p is not None),
+            default=0,
         )
-        step = 0.01 if has_decimal else 1.0
+        if max_dec >= 4:
+            step = 0.0001
+        elif max_dec == 3:
+            step = 0.001
+        elif max_dec > 0:
+            step = 0.01
+        else:
+            step = 1.0
 
         row_slug = self.row.id.replace(" ", "-").replace(".", "-")
 

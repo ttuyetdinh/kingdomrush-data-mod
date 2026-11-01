@@ -33,17 +33,29 @@ def pct_to_track(p: float) -> float:
     return 0.5 + (p - PCT_MID) / (PCT_MAX - PCT_MID) * 0.5
 
 
-def _dec(x: float) -> Decimal:
+def _dec(x: float | int) -> Decimal:
     return Decimal(str(x))
+
+
+def original_decimals(x: float | int) -> int:
+    """Number of decimal places in x via Decimal(str(x)). Whole numbers return 0."""
+    d = _dec(x)
+    if d == d.to_integral_value():
+        return 0
+    return -d.as_tuple().exponent
 
 
 def scale(original: float, pct: float) -> float:
     """original x pct%, half-up (away from zero). Whole originals give whole results,
-    decimal originals keep 2 decimals."""
+    decimal originals keep max(2, original decimals) places."""
     exact = _dec(original) * _dec(pct) / _HUNDRED
-    step = _WHOLE if _dec(original) == _dec(original).to_integral_value() else _CENTS
+    d_orig = _dec(original)
+    if d_orig == d_orig.to_integral_value():
+        step = _WHOLE
+    else:
+        places = max(2, original_decimals(original))
+        step = Decimal(10) ** -places
     return float(exact.quantize(step, rounding=ROUND_HALF_UP))
-
 
 def common_pct(pairs: Sequence[tuple[float, float]]) -> float | None:
     """Percent that maps every nonzero original to its current value, or None if mixed."""
