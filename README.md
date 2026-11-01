@@ -20,6 +20,16 @@ All user configurations are stored locally inside the repository folder:
 - Each profile stores only edited values relative to the original game balance.
 - NiceGUI and webview storage are kept inside the cache folder, ensuring nothing is written to AppData or LocalAppData.
 
+## First-Time Setup
+
+To set up the development environment, create a virtual environment using 64-bit Python 3.12 and install the package with development dependencies in editable mode:
+
+```bat
+py -3.12-64 -m venv .venv
+.venv\Scripts\activate
+pip install -e .[dev]
+```
+
 ## Running from Source
 
 To run the application from source using the shared virtual environment:
@@ -43,7 +53,7 @@ To build the standalone Windows executable:
 scripts\build.bat
 ```
 
-This compiles the app into dist\KrGenesisMod\KrGenesisMod.exe. Supporting files, including the mod template and dependencies, are placed alongside the executable in dist\KrGenesisMod.
+This compiles the app into dist\KrGenesisMod\KrGenesisMod.exe. The entire dist\KrGenesisMod folder, containing KrGenesisMod.exe alongside _internal and supporting data, must stay together and remain in place inside kingdomrush-data-mod. The executable relies on this relative location to discover the game installation, profiles, and local caches.
 
 ## Launching the Modded Game
 
