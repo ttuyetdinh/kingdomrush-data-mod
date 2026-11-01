@@ -16,6 +16,16 @@ _nicegui_storage = _cache_dir / "nicegui"
 _nicegui_storage.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("NICEGUI_STORAGE_PATH", str(_nicegui_storage))
 
+# A windowed exe has no console, so errors would vanish. Send them to cache\app.log
+# (the native window runs in a child process, which logs to cache\app-window.log).
+if sys.stdout is None or sys.stderr is None:
+    import multiprocessing
+
+    _log_name = "app.log" if multiprocessing.parent_process() is None else "app-window.log"
+    _log = open(_cache_dir / _log_name, "w", encoding="utf-8", buffering=1)  # noqa: SIM115
+    sys.stdout = sys.stdout or _log
+    sys.stderr = sys.stderr or _log
+
 from nicegui import app as nicegui_app, ui  # noqa: E402
 
 from krmod.assets.portraits import build_portrait_cache  # noqa: E402
