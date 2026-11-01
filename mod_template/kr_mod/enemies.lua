@@ -47,30 +47,45 @@ local function get_kind(E, store, o)
   return "normal", tpl
 end
 
--- Plan number of spawns n for an entry given mult and kind.
--- Boss enemies always spawn 1 and leave K.enemy_acc untouched.
--- Otherwise adds mult to K.enemy_acc, floors to n (at least 1 for carrier), and subtracts n.
-function M.plan(K, mult, kind)
+-- Plan number of spawns n for an entry given mult, kind and stream key.
+-- Boss enemies always spawn 1 and leave accumulators untouched.
+-- Otherwise adds mult to stream accumulator, floors to n (at least 1 for carrier), and subtracts n.
+function M.plan(K, mult, kind, key)
   if kind == "boss" then
     return 1
   end
   mult = mult or 1
-  local acc = (K and K.enemy_acc or 0) + mult
+  local accs = K and K.enemy_acc
+  if type(accs) ~= "table" then
+    accs = {}
+    if K then K.enemy_acc = accs end
+  end
+  local cur = (key and accs[key]) or 0
+  local acc = cur + mult
   local n = math.floor(acc)
   if kind == "carrier" then
     n = math.max(1, n)
   end
-  if K then
-    K.enemy_acc = acc - n
-    if math.abs(K.enemy_acc) < 1e-9 then
-      K.enemy_acc = 0
-    end
+  local rem = acc - n
+  if math.abs(rem) < 1e-9 then
+    rem = 0
+  end
+  if key then
+    accs[key] = rem
   end
   return n
 end
 
 local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
   if store.force_next_wave then return end
+
+  local wait_time = cmd.wait_time
+  if wait_time and wait_time > 0 then
+    local wait_cmd = shallow_copy(cmd)
+    wait_cmd.spawns = {}
+    original(store, wait_cmd, ...)
+    if store.force_next_wave then return end
+  end
 
   local E = nil
   local ok_e, edb = pcall(require, "entity_db")
@@ -80,14 +95,12 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
   local ok_u, utils = pcall(require, "utils")
   if ok_u then U = utils end
 
-  local wait_time = cmd.wait_time
-  local first_entry = true
-
   for _, o in ipairs(cmd.spawns) do
     if store.force_next_wave then break end
 
+    local key = tostring(o.pi) .. "|" .. tostring(o.enemy)
     local kind, tpl = get_kind(E, store, o)
-    local n = M.plan(K, mult, kind)
+    local n = M.plan(K, mult, kind, key)
 
     if n == 0 then
       if tpl ~= nil then
@@ -96,12 +109,7 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
     elseif n >= 1 then
       local sub_cmd = shallow_copy(cmd)
       sub_cmd.spawns = { o }
-      if first_entry then
-        sub_cmd.wait_time = wait_time or 0
-        first_entry = false
-      else
-        sub_cmd.wait_time = 0
-      end
+      sub_cmd.wait_time = 0
 
       if kind == "carrier" then
         local orig_gems = store.gems_per_wave
@@ -140,8 +148,11 @@ end
 
 -- Wrap systems.wave_spawn_tsv.cmd_fns.spawn once.
 function M.install(K, ctx)
-  if K and K.installed and K.installed.enemies then return end
+  if K then
+    K.enemy_acc = {}
+  end
 
+  if K and K.installed and K.installed.enemies then return end
   local ok_sys, systems = pcall(require, "systems")
   if not ok_sys
      or type(systems) ~= "table"

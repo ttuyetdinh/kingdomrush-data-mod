@@ -26,7 +26,7 @@ local function main(base, found, stats)
       live = { speed = 1, enemy_mult = 1, troop_mult = 1 },
       speed_keys = { DEFAULT_SPEED_KEYS[1], DEFAULT_SPEED_KEYS[2], DEFAULT_SPEED_KEYS[3] },
       pollers = {},
-      enemy_acc = 0,
+      enemy_acc = {},
     }
   end
   local K = KRMOD
