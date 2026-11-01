@@ -61,6 +61,8 @@ def test_badge(harness):
     assert harness.lua("return #PRINTS") == "0"
     harness.lua('game:keypressed("f6"); game:draw()')
     assert harness.lua("return PRINTS[1]") == "x2"
+    assert harness.lua("return tostring(LAST_PRINT_X)") == "940"
+    assert harness.lua("return tostring(LAST_PRINT_Y)") == "12"
 
 
 def test_read_live_validation(harness):
@@ -175,3 +177,9 @@ def test_pollers_called_when_live_file_invalid(harness):
     harness.write_raw("kr_mod_live.lua", "return { speed = 99, enemy_mult = 1, troop_mult = 1 }")
     harness.lua("NOW = 1; game:update(0.03)")
     assert harness.lua("return tostring(POLLER_COUNT)") == "1"
+
+
+def test_badge_centered_without_getfont(harness):
+    setup(harness, speed=2)
+    harness.lua("love.graphics.getFont = nil; game:draw()")
+    assert harness.lua("return tostring(LAST_PRINT_X)") == "940"
