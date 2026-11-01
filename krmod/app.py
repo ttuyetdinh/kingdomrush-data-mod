@@ -21,6 +21,7 @@ if sys.stdout is None or sys.stderr is None:
     _log = open(_cache_dir / "app.log", "w", encoding="utf-8", buffering=1)  # noqa: SIM115
     sys.stdout = sys.stdout or _log
     sys.stderr = sys.stderr or _log
+    print(f"KrGenesis Mod started, pid {os.getpid()}")
 
 from nicegui import app as nicegui_app, ui  # noqa: E402
 
