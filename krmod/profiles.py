@@ -112,8 +112,11 @@ def stale_changes(profile: Profile, tree: BalanceTree) -> list[KeyPath]:
     return stale
 
 
-def _slug(name: str) -> str:
+def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "profile"
+
+
+_slug = slug
 
 
 def _clean_name(name: str) -> str:

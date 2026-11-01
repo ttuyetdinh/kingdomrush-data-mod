@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from nicegui import ui
 
+from krmod.modgen import launcher
 from krmod.modgen.launcher import RunOutcome
 from krmod.modgen.logwatch import LogSummary, LogWatcher
 from krmod.state import AppState
@@ -35,23 +35,25 @@ def render(state: AppState) -> None:
                 from krmod.ui import main as ui_main
 
                 ui_main.refresh()
+                ui_main.rerender_right()
                 ui.notify("All changes reset", color="info")
 
             ui.button("Reset", on_click=do_reset).props(
                 "unelevated dense color=negative"
             ).mark("btn-confirm-reset")
 
-    # Dismissible dialog for Log summary
-    with ui.dialog() as summary_dialog, ui.card().classes(
-        "p-5 min-w-[420px] max-w-lg gap-3"
-    ).mark("log-summary-panel"):
+    # Dismissible non-blocking panel for Log summary
+    summary_panel = ui.card().classes(
+        "fixed bottom-14 right-6 z-50 p-4 min-w-[360px] max-w-md shadow-2xl border border-slate-300 bg-white gap-2"
+    ).mark("log-summary-panel")
+    summary_panel.visible = False
+    with summary_panel:
         with ui.row().classes("w-full justify-between items-center"):
-            ui.label("Mod Loader Log").classes("font-bold text-slate-900 text-base")
-            ui.button(icon="close", on_click=summary_dialog.close).props(
-                "flat round dense"
-            )
+            ui.label("Mod Loader Log").classes("font-bold text-slate-900 text-sm")
+            ui.button(
+                icon="close", on_click=lambda: summary_panel.set_visibility(False)
+            ).props("flat round dense text-color=slate-500")
         summary_content = ui.column().classes("w-full gap-2")
-
     def show_log_summary(summary: LogSummary) -> None:
         summary_content.clear()
         with summary_content:
@@ -99,7 +101,8 @@ def render(state: AppState) -> None:
                     for unl in summary.unlock:
                         ui.label(f"• {unl}").classes("text-xs text-slate-600")
 
-        summary_dialog.open()
+        status_label.visible = False
+        summary_panel.visible = True
 
     def check_log() -> None:
         nonlocal poll_timer
@@ -109,6 +112,7 @@ def render(state: AppState) -> None:
             return
 
         if time.time() - poll_start_time > 120:
+            status_label.visible = False
             if poll_timer:
                 poll_timer.deactivate()
             return
@@ -129,7 +133,12 @@ def render(state: AppState) -> None:
 
     def on_apply_mod() -> None:
         nonlocal watcher, last_outcome
-        last_outcome = None
+        summary_panel.visible = False
+        running = launcher.find_game(state.paths)
+        if running is not None and running.modded:
+            last_outcome = RunOutcome.UPDATED_RUNNING
+        else:
+            last_outcome = None
         log_file = state.paths.mods_dir / "kr_mod_log.txt"
         watcher = LogWatcher(log_file)
         watcher.mark()
@@ -142,6 +151,7 @@ def render(state: AppState) -> None:
 
     def on_apply_and_run() -> None:
         nonlocal watcher, last_outcome
+        summary_panel.visible = False
         log_file = state.paths.mods_dir / "kr_mod_log.txt"
         watcher = LogWatcher(log_file)
         watcher.mark()

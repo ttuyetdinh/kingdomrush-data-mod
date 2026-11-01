@@ -1,16 +1,16 @@
 """Top bar component: app title, tabs, self-check, profile selector and change count."""
 from __future__ import annotations
 
-import re
-from typing import Any, Callable
+from typing import Callable
 
 from nicegui import ui
 
 UI_TABS: tuple[str, ...] = (
     "Towers", "Troops", "Heroes", "Skills", "Enemies", "Items", "Stages", "Rules"
 )
-from krmod.profiles import ProfileError
+from krmod.profiles import ProfileError, slug
 from krmod.state import AppState
+from krmod.ui.sliders import live_slider
 
 
 class TopBar:
@@ -40,10 +40,10 @@ class TopBar:
 
     def _build(self) -> None:
         with ui.header().classes(
-            "w-full items-center justify-between px-4 py-2 bg-slate-900 text-white shadow"
+            "w-full items-center justify-between px-3 py-2 bg-slate-900 text-white shadow flex-nowrap"
         ):
             # Left section: App name, self-check status and warning chip
-            with ui.row().classes("items-center gap-3"):
+            with ui.row().classes("items-center gap-3 flex-nowrap shrink-0"):
                 ui.label("KrGenesis Mod").classes("text-lg font-bold tracking-tight text-white")
 
                 check = self.state.index.self_check()
@@ -63,14 +63,15 @@ class TopBar:
                 on_change=lambda e: self.on_tab_change(e.value),
             ).props(
                 "dense no-caps inline-label active-color=white active-bg-color=primary rounded indicator-color=transparent text-color=grey-5"
-            ).classes("bg-slate-800/80 p-1 rounded-lg")
+            ).classes("bg-slate-800/80 p-0.5 rounded-lg shrink-0")
             with self.tabs_el:
                 for tab in UI_TABS:
-                    ui.tab(tab)
+                    ui.tab(tab).props("dense").classes("px-1.5 py-0 min-h-0 text-xs")
 
-            # Right section: Change count, profile dropdown, and placeholder for Task 13
             # Right section: Live controls, change count, profile dropdown
-            self.topbar_right = ui.row().classes("items-center gap-3")
+            self.topbar_right = ui.row().classes(
+                "items-center gap-1.5 flex-nowrap shrink-0 pr-4"
+            )
             with self.topbar_right:
                 # Speed buttons
                 with ui.row().classes("items-center bg-slate-800 rounded p-0.5 gap-0.5"):
@@ -87,73 +88,28 @@ class TopBar:
                 self._update_speed_buttons()
 
                 # Enemy multiplier slider
-                e_val = self.state.profile.live.enemy_mult
-                with ui.row().classes("items-center gap-1"):
-                    self.enemy_label = ui.label(f"Enemies {e_val:g}x").classes(
-                        "text-xs text-slate-300 font-mono whitespace-nowrap"
+                with ui.row().classes("items-center gap-1 flex-nowrap"):
+                    self.enemy_label, self.enemy_slider = live_slider(
+                        self.state,
+                        "enemy_mult",
+                        "Enemies",
+                        "enemy-mult",
+                        slider_classes="w-full",
+                        wrapper_classes="w-[75px] shrink-0",
+                        label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
                     )
-                    self.enemy_slider = (
-                        ui.slider(min=0.5, max=3.0, step=0.25, value=e_val)
-                        .classes("w-20")
-                        .mark("enemy-mult")
-                    )
-
-                    def on_enemy_change(e: Any) -> None:
-                        raw = (
-                            e.args
-                            if (e.args is not None and isinstance(e.args, (int, float)))
-                            else self.enemy_slider.value
-                        )
-                        val = float(raw if raw is not None else 1.0)
-                        try:
-                            self.state.set_live(enemy_mult=val)
-                            self.enemy_label.text = f"Enemies {val:g}x"
-                            from krmod.ui import main as ui_main
-
-                            ui_main.refresh()
-                        except ProfileError as exc:
-                            ui.notify(str(exc), color="negative")
-                            self.enemy_slider.value = self.state.profile.live.enemy_mult
-                            self.enemy_label.text = (
-                                f"Enemies {self.state.profile.live.enemy_mult:g}x"
-                            )
-
-                    self.enemy_slider.on("change", on_enemy_change)
 
                 # Troop multiplier slider
-                t_val = self.state.profile.live.troop_mult
-                with ui.row().classes("items-center gap-1"):
-                    self.troop_label = ui.label(f"Troops {t_val:g}x").classes(
-                        "text-xs text-slate-300 font-mono whitespace-nowrap"
+                with ui.row().classes("items-center gap-1 flex-nowrap"):
+                    self.troop_label, self.troop_slider = live_slider(
+                        self.state,
+                        "troop_mult",
+                        "Troops",
+                        "troop-mult",
+                        slider_classes="w-full",
+                        wrapper_classes="w-[75px] shrink-0",
+                        label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
                     )
-                    self.troop_slider = (
-                        ui.slider(min=0.5, max=3.0, step=0.25, value=t_val)
-                        .classes("w-20")
-                        .mark("troop-mult")
-                    )
-
-                    def on_troop_change(e: Any) -> None:
-                        raw = (
-                            e.args
-                            if (e.args is not None and isinstance(e.args, (int, float)))
-                            else self.troop_slider.value
-                        )
-                        val = float(raw if raw is not None else 1.0)
-                        try:
-                            self.state.set_live(troop_mult=val)
-                            self.troop_label.text = f"Troops {val:g}x"
-                            from krmod.ui import main as ui_main
-
-                            ui_main.refresh()
-                        except ProfileError as exc:
-                            ui.notify(str(exc), color="negative")
-                            self.troop_slider.value = self.state.profile.live.troop_mult
-                            self.troop_label.text = (
-                                f"Troops {self.state.profile.live.troop_mult:g}x"
-                            )
-
-                    self.troop_slider.on("change", on_troop_change)
-
                 self.change_label = ui.label(self._change_text()).classes(
                     "text-xs text-slate-300 font-mono px-2 py-1 bg-slate-800 rounded"
                 )
@@ -193,11 +149,10 @@ class TopBar:
             # List existing profiles
             for name in self.state.profile_names():
                 is_active = name == self.state.profile.name
-                slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "profile"
                 item = ui.menu_item(
                     name,
                     on_click=lambda n=name: self._switch_profile(n),
-                ).mark(f"profile-item-{slug}")
+                ).mark(f"profile-item-{slug(name)}")
                 if is_active:
                     item.props("active")
 

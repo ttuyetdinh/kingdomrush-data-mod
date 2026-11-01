@@ -7,7 +7,7 @@ from nicegui import ui
 
 from krmod.model.values import path_str
 from krmod.profiles import FORBIDDEN_KEYS, ProfileError, validate_speed_keys
-from krmod.state import AppState
+from krmod.ui.sliders import live_slider
 
 
 def render(state: AppState) -> None:
@@ -23,6 +23,12 @@ def render(state: AppState) -> None:
             ).classes("text-sm text-slate-500")
 
         # Section 1: Progression Rules
+        with ui.card().classes(
+            "w-full p-4 border border-slate-200 shadow-sm rounded-lg"
+        ):
+            ui.label("Progression Rules").classes(
+                "text-base font-semibold text-slate-800 mb-2"
+            )
             ui.switch(
                 "Unlock all tower levels",
                 value=state.profile.unlock_tower_levels,
@@ -104,66 +110,25 @@ def render(state: AppState) -> None:
 
             # Enemy multiplier
             with ui.row().classes("w-full items-center gap-4"):
-                e_val = state.profile.live.enemy_mult
-                e_label = ui.label(f"Enemies {e_val:g}x").classes(
-                    "w-28 text-xs font-semibold text-slate-700"
+                live_slider(
+                    state,
+                    "enemy_mult",
+                    "Enemies",
+                    "rules-enemy-mult",
+                    wrapper_classes="flex-1",
+                    label_classes="w-28 text-xs font-semibold text-slate-700",
                 )
-                e_slider = (
-                    ui.slider(min=0.5, max=3.0, step=0.25, value=e_val)
-                    .classes("flex-1")
-                    .mark("rules-enemy-mult")
-                )
-
-                def on_e_change(e: Any) -> None:
-                    raw = (
-                        e.args
-                        if (e.args is not None and isinstance(e.args, (int, float)))
-                        else e_slider.value
-                    )
-                    val = float(raw if raw is not None else 1.0)
-                    try:
-                        state.set_live(enemy_mult=val)
-                        e_label.text = f"Enemies {val:g}x"
-                        from krmod.ui import main as ui_main
-
-                        ui_main.refresh()
-                    except ProfileError as exc:
-                        ui.notify(str(exc), color="negative")
-                        e_slider.value = state.profile.live.enemy_mult
-
-                e_slider.on("change", on_e_change)
 
             # Troop multiplier
             with ui.row().classes("w-full items-center gap-4"):
-                t_val = state.profile.live.troop_mult
-                t_label = ui.label(f"Troops {t_val:g}x").classes(
-                    "w-28 text-xs font-semibold text-slate-700"
+                live_slider(
+                    state,
+                    "troop_mult",
+                    "Troops",
+                    "rules-troop-mult",
+                    wrapper_classes="flex-1",
+                    label_classes="w-28 text-xs font-semibold text-slate-700",
                 )
-                t_slider = (
-                    ui.slider(min=0.5, max=3.0, step=0.25, value=t_val)
-                    .classes("flex-1")
-                    .mark("rules-troop-mult")
-                )
-
-                def on_t_change(e: Any) -> None:
-                    raw = (
-                        e.args
-                        if (e.args is not None and isinstance(e.args, (int, float)))
-                        else t_slider.value
-                    )
-                    val = float(raw if raw is not None else 1.0)
-                    try:
-                        state.set_live(troop_mult=val)
-                        t_label.text = f"Troops {val:g}x"
-                        from krmod.ui import main as ui_main
-
-                        ui_main.refresh()
-                    except ProfileError as exc:
-                        ui.notify(str(exc), color="negative")
-                        t_slider.value = state.profile.live.troop_mult
-
-                t_slider.on("change", on_t_change)
-
         # Section 4: Stale Changes (only rendered when non-empty)
         stale_paths = state.stale()
         if stale_paths:

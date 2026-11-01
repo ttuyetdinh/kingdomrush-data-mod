@@ -1,13 +1,10 @@
 """User simulation tests for Rules tab, live controls and apply bar (Task 13)."""
-from pathlib import Path
+import sys
 import pytest
-from nicegui import ui
 
 from krmod.modgen import launcher
-from krmod.modgen.launcher import RunningGame, RunOutcome
-import sys
+from krmod.modgen.launcher import RunningGame
 from krmod.profiles import ProfileStore
-
 
 @pytest.fixture
 def state(user):
@@ -209,6 +206,69 @@ async def test_log_summary_panel_updated_running(user, state, monkeypatch):
     os.utime(log_file, (future_time, future_time))
 
     await asyncio.sleep(1.2)
-    # For UPDATED_RUNNING, should not present log's applied count as result of this apply
     await user.should_not_see("Applied: 10 changes")
     await user.should_see("Game is running: changes apply at the next level start")
+
+
+async def test_reset_all_rerenders_open_card(user):
+    await user.open("/")
+    user.find("Archers").click()
+    cell = user.find(marker="cell-towers.archers.price.1")
+    cell.clear().type("7").trigger("keydown.enter")
+    await user.should_see(marker="orig-towers.archers.price.1")
+
+    user.find(marker="reset-all").click()
+    user.find(marker="btn-confirm-reset").click()
+
+    await user.should_not_see(marker="orig-towers.archers.price.1")
+    c = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
+    assert c.value == "70"
+
+
+async def test_profile_switch_on_rules_tab_preserves_rules_view(user):
+    await user.open("/")
+    user.find("Archers").click()
+    await user.should_see(marker="editor-title")
+
+    user.find("Rules").click()
+    await user.should_see("Progression Rules")
+
+    user.find(marker="profile-menu").click()
+    user.find("New").click()
+    user.find(marker="profile-name").type("Alt")
+    user.find("Create").click()
+
+    await user.should_see("Progression Rules")
+    await user.should_not_see(marker="editor-title")
+
+
+async def test_apply_mod_with_running_modded_game(user, state, monkeypatch):
+    import os, time, asyncio
+    monkeypatch.setattr(launcher, "find_game", lambda paths: RunningGame(1, True))
+    await user.open("/")
+
+    log_file = state.paths.mods_dir / "kr_mod_log.txt"
+    user.find(marker="apply-mod").click()
+
+    log_content = "applied 8 changes\n"
+    log_file.write_text(log_content, encoding="utf-8")
+    future_time = time.time() + 5
+    os.utime(log_file, (future_time, future_time))
+
+    await asyncio.sleep(1.2)
+    await user.should_not_see("Applied: 8 changes")
+    await user.should_see("Game is running: changes apply at the next level start")
+
+
+async def test_log_written_before_apply_produces_no_panel(user, state, monkeypatch):
+    import asyncio
+    monkeypatch.setattr(launcher, "find_game", lambda paths: None)
+    await user.open("/")
+
+    log_file = state.paths.mods_dir / "kr_mod_log.txt"
+    log_file.write_text("applied 2 changes\n", encoding="utf-8")
+
+    user.find(marker="apply-mod").click()
+    await asyncio.sleep(1.2)
+
+    await user.should_not_see(marker="log-summary-panel")

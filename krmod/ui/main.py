@@ -47,19 +47,36 @@ def show_card(card_id: str) -> None:
 
     table.render_card(_active_state, card_id)
 
+
+def rerender_right() -> None:
+    """Re-render the right editor region: Rules if on Rules tab, else active card or placeholder."""
+    if _active_state is None:
+        return
+    right = REGIONS.get("right")
+    if right is None:
+        return
+    if _current_tab == "Rules":
+        right.clear()
+        with right:
+            rules.render(_active_state)
+    elif _active_card_id is not None:
+        show_card(_active_card_id)
+    else:
+        right.clear()
+        with right:
+            ui.label("Select a unit on the left to edit stats").classes(
+                "text-slate-400 italic mt-4"
+            )
+
+
 def refresh() -> None:
     """Module-level refresh hook for UI updates after state mutations."""
     if _topbar is not None:
         _topbar.refresh()
     if _cards_col is not None:
         _cards_col.refresh()
-    if _current_tab == "Rules" and _active_state is not None:
-        right = REGIONS.get("right")
-        if right is not None:
-            right.clear()
-            with right:
-                rules.render(_active_state)
-
+    if _current_tab == "Rules":
+        rerender_right()
 def _render_error(error_msg: str) -> None:
     with ui.column().classes("w-full h-screen items-center justify-center p-8 bg-slate-900 text-white gap-4"):
         ui.icon("error", size="4rem", color="negative")
@@ -87,27 +104,11 @@ def _render_shell(state: AppState) -> None:
         _current_tab = tab
         if _cards_col is not None:
             _cards_col.set_tab(tab)
+        rerender_right()
 
-        right = REGIONS.get("right")
-        if right is None or _active_state is None:
-            return
-
-        if tab == "Rules":
-            right.clear()
-            with right:
-                rules.render(_active_state)
-        elif _active_card_id is not None:
-            show_card(_active_card_id)
-        else:
-            right.clear()
-            with right:
-                ui.label("Select a unit on the left to edit stats").classes(
-                    "text-slate-400 italic mt-4"
-                )
     def on_profile_change() -> None:
         refresh()
-        if _active_card_id is not None:
-            show_card(_active_card_id)
+        rerender_right()
 
     # Top Bar
     _topbar = TopBar(state, on_tab_change=on_tab_change, on_profile_change=on_profile_change)
@@ -128,7 +129,7 @@ def _render_shell(state: AppState) -> None:
             ui.label("Select a unit on the left to edit stats").classes("text-slate-400 italic mt-4")
 
     # Bottom bar container
-    bottom_bar = ui.row().classes("w-full items-center justify-between px-6 py-2 border-t border-slate-200 bg-slate-50 shrink-0")
+    bottom_bar = ui.footer().classes("w-full items-center justify-between px-6 py-2 border-t border-slate-200 bg-slate-50 text-slate-800 shrink-0")
     REGIONS["bottom"] = bottom_bar
     with bottom_bar:
         applybar.render(state)
