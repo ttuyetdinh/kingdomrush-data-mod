@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Sequence
 
 from krmod.model.categories import CATEGORY_NAMES, category_of
 from krmod.model.grouping import GroupIndex
 from krmod.model.rows import StatRow, build_rows
 from krmod.model.scaling import c2_range, common_pct, scale, warn
-from krmod.model.values import BalanceTree, KeyPath, path_str
+from krmod.model.values import BalanceTree, KeyPath, Leaf, path_str
 from krmod.modgen.launcher import RunOutcome, apply_and_run
 from krmod.modgen.writer import ApplyResult, apply_mod, write_live
 from krmod.paths import GamePaths
@@ -19,6 +20,10 @@ from krmod.profiles import (
     ProfileStore,
     stale_changes,
     validate_speed_keys,
+)
+
+_ASCII_NUMBER_RE = re.compile(
+    r"^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$"
 )
 
 
@@ -57,7 +62,7 @@ class AppState:
     def card_has_changes(self, card_id: str) -> bool:
         return any(p in self.profile.changes for p in self.index.paths_of(card_id))
 
-    def set_value(self, path: KeyPath, value: float) -> str | None:
+    def _validate_editable(self, path: KeyPath, value: float) -> Leaf:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError(f"Value must be a number, got {value!r}")
         if not math.isfinite(value):
@@ -67,17 +72,42 @@ class AppState:
         leaf = self.tree.leaves[path]
         if leaf.kind != "num" or leaf.is_enum:
             raise ValueError(f"Path cannot be edited as numeric: {path}")
+        return leaf
 
+    def _store(self, path: KeyPath, new_val: float) -> None:
         orig = self.original(path)
-        if float(value) == orig:
-            if path in self.profile.changes:
-                del self.profile.changes[path]
-                self.store.save(self.profile)
-            return None
+        if float(new_val) == orig:
+            self.profile.changes.pop(path, None)
+        else:
+            leaf = self.tree.leaves[path]
+            val = (
+                int(new_val)
+                if leaf.is_whole and float(new_val).is_integer()
+                else float(new_val)
+            )
+            self.profile.changes[path] = val
 
-        val = int(value) if leaf.is_whole and float(value).is_integer() else float(value)
-        self.profile.changes[path] = val
+    def _apply_pct(self, paths: Sequence[KeyPath], pct: float) -> None:
+        for p in paths:
+            orig = self.original(p)
+            new_val = scale(orig, pct)
+            self._store(p, new_val)
         self.store.save(self.profile)
+
+    def _scalable(self, p: KeyPath | None) -> bool:
+        if p is None:
+            return False
+        leaf = self.tree.leaves.get(p)
+        if leaf is None or leaf.kind != "num" or leaf.is_enum:
+            return False
+        return self.original(p) != 0
+
+    def set_value(self, path: KeyPath, value: float) -> str | None:
+        self._validate_editable(path, value)
+        self._store(path, value)
+        self.store.save(self.profile)
+        if float(value) == self.original(path):
+            return None
         return warn(path, float(value))
 
     def parse_and_set(self, path: KeyPath, text: str) -> tuple[bool, str | None]:
@@ -86,6 +116,8 @@ class AppState:
         s = text.strip()
         if not s:
             return False, "Value cannot be empty."
+        if not _ASCII_NUMBER_RE.match(s):
+            return False, "Not a number."
         try:
             val = float(s)
         except ValueError:
@@ -116,31 +148,10 @@ class AppState:
         return list(self._rows_cache[card_id])
 
     def _eligible_row_cells(self, row: StatRow) -> list[KeyPath]:
-        cells: list[KeyPath] = []
-        for p in row.cells:
-            if p is None:
-                continue
-            leaf = self.tree.leaves.get(p)
-            if leaf is None or leaf.kind != "num" or leaf.is_enum:
-                continue
-            if self.original(p) == 0:
-                continue
-            cells.append(p)
-        return cells
+        return [p for p in row.cells if self._scalable(p)]
 
     def scale_row(self, row: StatRow, pct: float) -> None:
-        pct = round(pct, 1)
-        cells = self._eligible_row_cells(row)
-        for p in cells:
-            orig = self.original(p)
-            new_val = scale(orig, pct)
-            if float(new_val) == orig:
-                self.profile.changes.pop(p, None)
-            else:
-                leaf = self.tree.leaves[p]
-                val = int(new_val) if leaf.is_whole and float(new_val).is_integer() else float(new_val)
-                self.profile.changes[p] = val
-        self.store.save(self.profile)
+        self._apply_pct(self._eligible_row_cells(row), round(pct, 1))
 
     def row_pct(self, row: StatRow) -> float | None:
         cells = self._eligible_row_cells(row)
@@ -154,10 +165,7 @@ class AppState:
     ) -> list[KeyPath]:
         paths: list[KeyPath] = []
         for p in self.index.paths_of(card_id):
-            leaf = self.tree.leaves.get(p)
-            if leaf is None or leaf.kind != "num" or leaf.is_enum:
-                continue
-            if self.original(p) == 0:
+            if not self._scalable(p):
                 continue
             cat = category_of(p)
             if cat is None:
@@ -172,18 +180,7 @@ class AppState:
         return [c for c in CATEGORY_NAMES if c in seen]
 
     def scale_card(self, card_id: str, category: str, pct: float) -> None:
-        pct = round(pct, 1)
-        paths = self._eligible_card_paths(card_id, category)
-        for p in paths:
-            orig = self.original(p)
-            new_val = scale(orig, pct)
-            if float(new_val) == orig:
-                self.profile.changes.pop(p, None)
-            else:
-                leaf = self.tree.leaves[p]
-                val = int(new_val) if leaf.is_whole and float(new_val).is_integer() else float(new_val)
-                self.profile.changes[p] = val
-        self.store.save(self.profile)
+        self._apply_pct(self._eligible_card_paths(card_id, category), round(pct, 1))
 
     def card_pct(self, card_id: str, category: str) -> float | None:
         paths = self._eligible_card_paths(card_id, category)
@@ -195,34 +192,17 @@ class AppState:
     def set_level(
         self, path: KeyPath, value: float, locked_row: StatRow | None = None
     ) -> str | None:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(f"Value must be a number, got {value!r}")
-        if not math.isfinite(value):
-            raise ValueError(f"Value must be finite, got {value!r}")
-        if path not in self.tree.leaves:
-            raise ValueError(f"Unknown path: {path}")
-        leaf = self.tree.leaves[path]
-        if leaf.kind != "num" or leaf.is_enum:
-            raise ValueError(f"Path cannot be edited as numeric: {path}")
-
+        self._validate_editable(path, value)
         orig = self.original(path)
         if locked_row is None or orig == 0:
             return self.set_value(path, value)
 
         ratio = float(value) / orig
-        pct = round(ratio * 100.0, 1)
-
+        pct = ratio * 100.0
         cells = self._eligible_row_cells(locked_row)
-        for p in cells:
-            orig_j = self.original(p)
-            new_val = scale(orig_j, pct)
-            if float(new_val) == orig_j:
-                self.profile.changes.pop(p, None)
-            else:
-                leaf_j = self.tree.leaves[p]
-                val = int(new_val) if leaf_j.is_whole and float(new_val).is_integer() else float(new_val)
-                self.profile.changes[p] = val
-        self.store.save(self.profile)
+        self._apply_pct(cells, pct)
+        if float(value) == orig:
+            return None
         return warn(path, float(value))
 
     def c2_range(self, row: StatRow) -> tuple[float, float]:

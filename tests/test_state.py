@@ -32,7 +32,7 @@ def test_set_and_reset(state):
 
 def test_parse_and_set_rejects_bad_text(state):
     p = ("towers", "archers", "price", 1)
-    for bad in ("", "abc", "1,5", "nan", "inf"):
+    for bad in ("", "abc", "1,5", "nan", "inf", "1_5", "١٢"):
         ok, _ = state.parse_and_set(p, bad)
         assert not ok and state.current(p) == 70
     assert state.parse_and_set(p, " 7 ") == (True, None)
@@ -290,3 +290,14 @@ def test_duplicate_profile_with_explicit_source(state):
     p = state.duplicate_profile("SourceProf", "DestProf")
     assert p.name == "DestProf"
     assert "DestProf" in state.profile_names()
+
+
+def test_locked_level_large_original_exact(state):
+    row = next(
+        r for r in state.rows("stages/stage_18")
+        if r.id == "veznan.boss.hp_max"
+    )
+    p = row.cells[0]
+    assert state.original(p) == 5666.0
+    state.set_level(p, 5667, locked_row=row)
+    assert state.current(p) == 5667
