@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .grouping import Card
-from .values import BalanceTree, KeyPath, path_str
+from .values import BalanceTree, KeyPath, is_enum_key
 
 HERO_BARS_LABEL = "Hero screen bars"
 
@@ -34,14 +34,6 @@ def friendly_label(key: str) -> str:
     words = ["HP" if w == "hp" else w for w in words]
     text = " ".join(words)
     return text[:1].upper() + text[1:] + suffix
-
-
-def _is_enum_key(key: str | int, kind: str) -> bool:
-    return (
-        kind == "num"
-        and isinstance(key, str)
-        and (key == "damage_type" or key.endswith("_damage_type"))
-    )
 
 
 def _relative(card: Card, path: KeyPath) -> KeyPath:
@@ -100,7 +92,7 @@ def build_rows(card: Card, paths: list[KeyPath], tree: BalanceTree) -> list[Stat
                 label = f"{friendly_label(str(owner[-2]))} {key}" if len(owner) > 1 else str(key)
             else:
                 label = friendly_label(key)
-            enum = _is_enum_key(key, leaf.kind)
+            enum = leaf.kind == "num" and is_enum_key(key)
             entry = (
                 ".".join(str(s) for s in rel),
                 _group_label(card, group),

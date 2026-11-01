@@ -22,3 +22,17 @@ def test_category_of(path, cat):
 def test_every_category_is_populated(tree):
     seen = {category_of(p) for p, leaf in tree.leaves.items() if leaf.kind == "num"}
     assert set(CATEGORY_NAMES) <= seen
+
+
+def test_enum_rule_is_shared(tree):
+    from krmod.model.values import Leaf, is_enum_key
+
+    assert is_enum_key("damage_type") and is_enum_key("ranged_damage_type")
+    assert not is_enum_key("damage_types") and not is_enum_key(1) and not is_enum_key(None)
+    for p, leaf in tree.leaves.items():
+        if leaf.kind == "num":
+            assert leaf.is_enum == is_enum_key(p[-1])
+            if leaf.is_enum:
+                assert category_of(p) is None
+    assert Leaf(("x", "damage_type"), 3, "num").is_enum
+    assert not Leaf(("x", "damage_type"), "a", "str").is_enum

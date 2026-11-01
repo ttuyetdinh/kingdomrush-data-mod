@@ -1,7 +1,7 @@
 """Slider categories: which "All ..." bulk slider a numeric value belongs to."""
 from __future__ import annotations
 
-from .values import KeyPath
+from .values import KeyPath, is_enum_key
 
 CATEGORY_NAMES = ("All costs", "All damage", "All range", "All cooldowns", "All HP")
 
@@ -24,7 +24,7 @@ def category_of(path: KeyPath) -> str | None:
     key = next((s for s in reversed(path) if isinstance(s, str)), None)
     if key is None:
         return None
-    if key == "damage_type" or key.endswith("_damage_type"):
+    if is_enum_key(key):
         return None  # enum leaves are never scaled
     if key in _COSTS:
         return "All costs"

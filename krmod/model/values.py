@@ -15,6 +15,11 @@ _DAMAGE_SKIP = {
 }
 
 
+def is_enum_key(key: str | int | None) -> bool:
+    """True for the key of a damage-type bit field: an enum, never scaled or edited as a number."""
+    return isinstance(key, str) and (key == "damage_type" or key.endswith("_damage_type"))
+
+
 def path_str(p: KeyPath) -> str:
     return ".".join(str(seg) for seg in p)
 
@@ -28,11 +33,7 @@ class Leaf:
     @property
     def is_enum(self) -> bool:
         last = self.path[-1] if self.path else None
-        return (
-            self.kind == "num"
-            and isinstance(last, str)
-            and (last == "damage_type" or last.endswith("_damage_type"))
-        )
+        return self.kind == "num" and is_enum_key(last)
 
     @property
     def is_whole(self) -> bool:
