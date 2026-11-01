@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Packaging output
+build/
+dist/
+*.spec
+
+# Owner data and generated caches
+profiles/
+cache/
+
+# Brainstorm companion files
+.superpowers/
+
+# Never commit game-derived content (bytecode, decompiled code, extracted assets)
+extracted/
+decompiled/
+*.lua
+!mod_template/**/*.lua
