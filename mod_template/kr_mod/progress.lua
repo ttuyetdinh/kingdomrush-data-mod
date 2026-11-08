@@ -105,4 +105,36 @@ function M.install_star_unlocks(K, map, get_rules)
   return true
 end
 
+-- Every skill tree (hero, tower and spell rooms and the Upgrades screen) is evaluated by
+-- KGraphDictionary:evaluate(source, remaining_points). Where a tree splits, the game puts the
+-- side not taken in result.block_buttons, and buying it swaps the sides. While is_enabled()
+-- is true those nodes become normal nodes: buyable when the points cover their cost, else
+-- shown as too expensive. Their children open once they are bought, like any other node.
+-- Wraps each class function once; returns false when the skill trees are not loaded.
+function M.install_both_paths(K, graph_class, is_enabled)
+  if type(graph_class) ~= "table" or type(graph_class.evaluate) ~= "function" then return false end
+  if graph_class.evaluate == K.both_paths_wrapper then return true end
+  local original = graph_class.evaluate
+  K.both_paths_wrapper = function(self, source, remaining_points, ...)
+    local result = original(self, source, remaining_points, ...)
+    if not is_enabled() or type(result) ~= "table" or type(result.block_buttons) ~= "table" then
+      return result
+    end
+    local nodes = type(self.graph) == "table" and self.graph[source] or {}
+    for node_id in pairs(result.block_buttons) do
+      local cost = type(nodes[node_id]) == "table" and tonumber(nodes[node_id].cost)
+      if cost and type(remaining_points) == "number" and cost <= remaining_points then
+        result.enable_buttons[node_id] = true
+        table.insert(result.available_nodes, node_id)
+      else
+        result.unavailable_buttons[node_id] = true
+      end
+    end
+    result.block_buttons = {}
+    return result
+  end
+  graph_class.evaluate = K.both_paths_wrapper
+  return true
+end
+
 return M

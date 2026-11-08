@@ -46,6 +46,7 @@ def test_json_format(tmp_path):
             "unlock_heroes": False,
             "unlock_towers": False,
             "unlock_spells": False,
+            "allow_both_paths": False,
             "extra_hero_points": 5,
             "extra_spell_points": 0,
             "extra_upgrade_points": 0,
@@ -64,9 +65,9 @@ def test_profile_saved_before_hero_rules_loads_with_defaults(tmp_path):
     s.switch("Old")
     p = s.active()
     assert (
-        p.unlock_tower_levels, p.unlock_heroes, p.unlock_towers, p.unlock_spells,
+        p.unlock_tower_levels, p.unlock_heroes, p.unlock_towers, p.unlock_spells, p.allow_both_paths,
         p.extra_hero_points, p.extra_spell_points, p.extra_upgrade_points,
-    ) == (True, False, False, False, 0, 0, 0)
+    ) == (True, False, False, False, False, 0, 0, 0)
 
 
 @pytest.mark.parametrize(

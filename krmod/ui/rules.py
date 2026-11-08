@@ -101,6 +101,17 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
                     f"Everything in the {room} is available without collecting stars. No unlock is "
                     "written to your save: turn it off and the star requirements come back."
                 ).classes("text-xs text-slate-400 mt-1")
+            ui.switch(
+                "Allow both paths in skill trees",
+                value=state.profile.allow_both_paths,
+                on_change=lambda e: state.set_rule("allow_both_paths", bool(e.value)),
+            ).mark("both-paths-switch").classes("mt-3")
+            ui.label(
+                "Where a hero, tower, spell or Upgrades skill tree splits in two, both sides can be "
+                "bought, each at its normal cost. Bought skills are saved by the game: turning this "
+                "off keeps them, and the tree's reset button clears them. If the game treats a pair "
+                "as one or the other, only one of them may work in a level."
+            ).classes("text-xs text-slate-400 mt-1")
             with ui.column().classes("gap-1 mt-4"):
                 PointsBox(state, "extra_hero_points", "Extra hero skill points", "extra-hero-points")
                 PointsBox(state, "extra_spell_points", "Extra spell skill points", "extra-spell-points")
