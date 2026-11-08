@@ -10,12 +10,12 @@ Working notes for building KrGenesis Mod, kept so development can continue on an
 
 ## Where things stand
 
-- Tasks 0-15 are done and merged into feat/krgenesis-mod. Owner smoke tests 1 and 2 passed.
+- Tasks 0-17 are done on feat/krgenesis-mod. Owner smoke tests 1 and 2 passed; the owner closed Task 16 without reporting the remaining in-game checks.
 - Added after the plan: slider range 0% to 500%, selectable game folder (top bar folder icon, saved in settings.json), cache\app.log for the windowed exe.
-- Task 16 (in-game verification with the owner) is in progress. Spec sections 11 and 12 list what to check.
-- Task 17 (final review, PR to main, delete the docs/mod-studio-design branch, clean up test leftovers) is after Task 16. The deferred minors to triage are listed in progress.md.
-- Open question: the stage 11 camp troop count (see progress.md, parked for Task 16).
-- Unexplained: the exe window once stopped responding to clicks. Not reproduced since. If it happens again, read cache\app.log before restarting the app.
+- Final whole-branch review fixed: stage 11 camp troop counts (camp insert wrapper), wide hero tables, per-page UI state, re-applying the app speed after F5-F7, Apply off the event loop and one Apply at a time. Ledger triage of the remaining minors is in progress.md (all LEAVE).
+- Not yet checked in game: Heroic stage unlock, the stage 11 camp wrapper (logs "error troops: stage 11 camp hook not found" if the hook is absent), FPS at x3, re-clicking the speed button after F5-F7.
+- Unexplained: the exe window once stopped responding to clicks. Not reproduced since. cache\app.log now logs "page built" and connect/disconnect lines; read it before restarting the app if it happens again.
+- Kept on purpose for now: the docs/mod-studio-design branch and these notes.
 
 ## Setting up on another machine
 
