@@ -6,10 +6,10 @@ KrGenesis Mod is a desktop editor and live tuning tool for Kingdom Rush Genesis.
 
 - Safe and non-invasive: The application never modifies Kingdom Rush Genesis.exe or any original game file. Launching the game normally always runs the unmodified vanilla game.
 - Balance editing: Browse towers, troops, heroes, skills, enemies, items, and stages. Type a value or use the up and down arrows (one step is the smallest digit of the game's value, Shift for ten steps). Row % and Quick scale boxes set a whole row or group to a percentage of the game's values (0% to 500%).
-- Progression rules: Optionally unlock all tower upgrade levels from the start.
+- Progression rules: Optionally unlock all tower upgrade levels from the start, and unlock all heroes without collecting stars. Extra hero skill points and extra skill tree points (0 to 999) are added on top of the game's own points, so hero levels and finished stages still count. Your save is never changed: set a rule back and the game's own numbers return.
 - Live speed hotkeys: Switch gameplay speed between x1, x2, and x3 using hotkeys F5, F6, and F7. When accelerated speed is active, an on-screen x2 or x3 badge appears during gameplay. Speed hotkeys can be customized in the Rules tab.
 - Live enemy and troop counts: Enemies multiplies regular enemies (0.25 for a quarter, or 1 to 10; bosses always spawn). Troops adds or removes soldiers per barracks (-10 to +10; 0 is the default, and a large minus can leave a barracks empty).
-- Real-time vs level start timing: Live controls such as game speed, enemy count, and troop count update mid-level during active combat. Stat edits and tower unlock rules take effect at the next level start or stage restart.
+- Real-time vs level start timing: Live controls such as game speed, enemy count, and troop count update mid-level during active combat. Stat edits and tower unlock rules take effect at the next level start or stage restart. Hero unlocks and extra points show the next time the map screen opens.
 - Half-screen friendly: Below 1280 px wide the top bar uses two rows, and the card list can be folded to give the stat table more room.
 
 ## Profiles and Storage

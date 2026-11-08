@@ -19,6 +19,7 @@ from krmod.profiles import (
     ProfileError,
     ProfileStore,
     stale_changes,
+    validate_rule,
     validate_speed_keys,
 )
 
@@ -222,8 +223,10 @@ class AppState:
         self.store.save(self.profile)
         write_live(self.paths, self.profile.live, bump_seq=speed is not None)
 
-    def set_unlock(self, on: bool) -> None:
-        self.profile.unlock_tower_levels = bool(on)
+    def set_rule(self, name: str, value: bool | int) -> None:
+        """Set one Progression rule (see profiles.RULE_DEFAULTS) and save; invalid values raise."""
+        validate_rule(name, value)
+        setattr(self.profile, name, value)
         self.store.save(self.profile)
 
     def set_speed_keys(self, keys: Sequence[str]) -> None:

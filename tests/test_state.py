@@ -117,11 +117,15 @@ def test_set_value_validation(state):
         state.set_value(("invalid", "path"), 10)
 
 
-def test_set_unlock_and_speed_keys(state):
+def test_set_rule_and_speed_keys(state):
     assert not state.profile.unlock_tower_levels
-    state.set_unlock(True)
-    assert state.profile.unlock_tower_levels
-    assert ProfileStore(state.paths.profiles_dir).active().unlock_tower_levels
+    state.set_rule("unlock_tower_levels", True)
+    state.set_rule("extra_hero_points", 40)
+    saved = ProfileStore(state.paths.profiles_dir).active()
+    assert (saved.unlock_tower_levels, saved.extra_hero_points) == (True, 40)
+    with pytest.raises(ProfileError):
+        state.set_rule("extra_hero_points", 1000)
+    assert state.profile.extra_hero_points == 40
 
     state.set_speed_keys(["F5", "F6", "F7"])
     assert state.profile.speed_keys == ("f5", "f6", "f7")

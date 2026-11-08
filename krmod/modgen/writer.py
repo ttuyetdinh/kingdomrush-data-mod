@@ -14,6 +14,7 @@ from krmod.paths import GamePaths
 from krmod.profiles import (
     LiveSettings,
     Profile,
+    rules_dict,
     stale_changes,
     validate_speed_keys,
 )
@@ -75,14 +76,7 @@ def data_table(profile: Profile, tree: BalanceTree) -> dict:
     sorted_paths = sorted(valid.keys(), key=path_str)
     changes = [{"p": list(p), "v": valid[p]} for p in sorted_paths]
 
-    if hasattr(profile, "rules") and isinstance(profile.rules, dict):
-        rules = dict(profile.rules)
-    else:
-        rules = {
-            "unlock_tower_levels": bool(
-                getattr(profile, "unlock_tower_levels", False)
-            )
-        }
+    rules = rules_dict(profile)
 
     speed_keys = list(validate_speed_keys(profile.speed_keys))
     return {

@@ -62,6 +62,10 @@ package.preload["utils"] = function()
   return { y_wait = function(store, t) table.insert(WAITS, t) end }
 end
 package.loaded["scripts_game"] = { tower_stage_11_camp = { insert = function(this, store) return true end } }
+package.loaded["game_settings"] = {
+  skill_points_for_hero_level = { 0, 4, 8 },
+  upgrades_points_per_stage = { 0, 2, 4 },
+}
 """
 
 
@@ -85,11 +89,12 @@ class ModHarness:
         changes: list[tuple[KeyPath, float]] = [],
         unlock: bool = False,
         speed_keys=("f5", "f6", "f7"),
+        rules: dict = {},
     ) -> None:
         data = {
             "version": 1,
             "changes": [{"p": list(path), "v": value} for path, value in changes],
-            "rules": {"unlock_tower_levels": unlock},
+            "rules": {"unlock_tower_levels": unlock, **rules},
             "speed_keys": list(speed_keys),
         }
         self.write_raw("kr_mod_data.lua", "return " + to_lua(data) + "\n")

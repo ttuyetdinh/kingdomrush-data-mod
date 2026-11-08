@@ -1,14 +1,60 @@
-"""Rules tab view: unlock switch, speed key bindings, live Enemies and Troops boxes, and stale changes."""
+"""Rules tab view: unlock switches, extra points, speed key bindings, live Enemies and Troops
+boxes, and stale changes."""
 from __future__ import annotations
 
 from typing import Any, Callable
 
 from nicegui import ui
 
+from krmod.model.stepping import EXTRA_POINTS_MAX, clamp_points, parse_number, step_points
 from krmod.model.values import path_str
 from krmod.profiles import FORBIDDEN_KEYS, ProfileError, validate_speed_keys
 from krmod.state import AppState
 from krmod.ui.livebox import LiveBox
+from krmod.ui.spinbox import SpinBox
+
+
+class PointsBox:
+    """A label and a SpinBox bound to one extra points rule of the active profile.
+
+    Typed numbers are rounded and clamped to 0..EXTRA_POINTS_MAX; the arrows step 1 (10 with
+    Shift). Every accepted value goes through state.set_rule, which saves the profile.
+    """
+
+    def __init__(self, state: AppState, rule: str, label: str, marker: str) -> None:
+        self.state = state
+        self.rule = rule
+        with ui.row().classes("items-center gap-2 flex-nowrap"):
+            ui.label(label).classes("text-sm text-slate-700 w-44")
+            self.box = SpinBox(
+                str(self._current()),
+                on_commit=self._on_commit,
+                on_step=lambda direction, shift: self._save(
+                    step_points(self._current(), direction, shift)
+                ),
+                marker=marker,
+                classes="w-20",
+            )
+
+    def _current(self) -> int:
+        return getattr(self.state.profile, self.rule)
+
+    def _on_commit(self, text: str) -> None:
+        try:
+            typed = parse_number(text)
+        except ValueError as exc:
+            ui.notify(str(exc), color="negative")
+            self.box.set_text(str(self._current()))
+            return
+        self._save(clamp_points(typed))
+
+    def _save(self, value: int) -> None:
+        if value != self._current():
+            try:
+                self.state.set_rule(self.rule, value)
+            except ProfileError as exc:
+                ui.notify(str(exc), color="negative")
+        self.box.set_text(str(self._current()))
 
 
 def render(state: AppState, on_refresh: Callable[[], None]) -> None:
@@ -33,10 +79,30 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
             ui.switch(
                 "Unlock all tower levels",
                 value=state.profile.unlock_tower_levels,
-                on_change=lambda e: state.set_unlock(bool(e.value)),
+                on_change=lambda e: state.set_rule("unlock_tower_levels", bool(e.value)),
             ).mark("unlock-switch")
             ui.label(
                 "Removes level restrictions from towers on all stages while keeping tower type unlocks vanilla."
+            ).classes("text-xs text-slate-400 mt-1")
+            ui.switch(
+                "Unlock all heroes",
+                value=state.profile.unlock_heroes,
+                on_change=lambda e: state.set_rule("unlock_heroes", bool(e.value)),
+            ).mark("unlock-heroes-switch").classes("mt-3")
+            ui.label(
+                "Every hero is available in the hero room without collecting stars. "
+                "Your save is not changed: turn it off and the star requirements come back."
+            ).classes("text-xs text-slate-400 mt-1")
+            with ui.column().classes("gap-1 mt-4"):
+                PointsBox(state, "extra_hero_points", "Extra hero skill points", "extra-hero-points")
+                PointsBox(state, "extra_upgrade_points", "Extra skill tree points", "extra-upgrade-points")
+            ui.label(
+                f"Added on top of the game's points (0 to {EXTRA_POINTS_MAX}): hero levels and finished "
+                "stages still give their normal points. If you lower a number after spending, "
+                "use the game's reset button to get the points back."
+            ).classes("text-xs text-slate-400 mt-1")
+            ui.label(
+                "Unlocks and extra points show the next time the map screen opens, after Apply mod."
             ).classes("text-xs text-slate-400 mt-1")
 
         # Section 2: Game Speed Hotkeys

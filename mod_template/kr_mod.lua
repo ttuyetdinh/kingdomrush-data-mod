@@ -86,6 +86,17 @@ local function main(base, found, stats)
     end, log)
   end)
 
+  step("progress", function()
+    local progress = dofile(base .. "/mods/kr_mod/progress.lua")
+    progress.apply_points(K, require("game_settings"), data.rules, log)
+    local hooked = progress.install_heroes(K, rawget(_G, "screen_map"), function()
+      return K.data.rules.unlock_heroes == true
+    end)
+    if data.rules.unlock_heroes == true then
+      log(hooked and "unlock heroes: all" or "unlock heroes: waiting for the map screen")
+    end
+  end)
+
   local ctx = { base = base, log = log }
   for _, name in ipairs({ "live", "enemies", "troops" }) do
     step("module " .. name, function()
