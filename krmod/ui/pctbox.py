@@ -7,7 +7,7 @@ from nicegui import ui
 
 from krmod.model.scaling import PCT_MID
 from krmod.model.stepping import parse_pct, step_pct
-from krmod.ui.sliders import format_pct
+from krmod.ui.formatting import format_pct
 from krmod.ui.spinbox import SpinBox
 
 _CHANGED = "text-amber-700 font-bold"

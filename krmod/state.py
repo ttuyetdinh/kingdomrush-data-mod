@@ -141,6 +141,10 @@ class AppState:
     def _eligible_row_cells(self, row: StatRow) -> list[KeyPath]:
         return [p for p in row.cells if self._scalable(p)]
 
+    def row_scalable(self, row: StatRow) -> bool:
+        """True when a percentage can change the row (some numeric cell with a nonzero original)."""
+        return bool(self._eligible_row_cells(row))
+
     def scale_row(self, row: StatRow, pct: float) -> None:
         self._apply_pct(self._eligible_row_cells(row), round(pct, 1))
 

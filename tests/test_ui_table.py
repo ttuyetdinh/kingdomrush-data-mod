@@ -239,13 +239,11 @@ async def test_quick_scale_box_typed_and_stepped(user):
     assert _val(user, "cell-towers.knights.price.1") == "350"
 
 
-async def test_zero_original_leaves_at_zero(user):
+async def test_row_without_nonzero_originals_has_no_pct_box(user):
     await user.open("/")
     user.find("Alchemist").click()
-    p_str = "towers.alchemist.ultimate.gold_pig.armor"
-    assert _val(user, f"cell-{p_str}") == "0"
-    user.find(marker="row-pct-ultimate-gold_pig-armor").clear().type("500").trigger("keydown.enter")
-    assert _val(user, f"cell-{p_str}") == "0"
+    assert _val(user, "cell-towers.alchemist.ultimate.gold_pig.armor") == "0"
+    await user.should_not_see(marker="row-pct-ultimate-gold_pig-armor")
 
 
 async def test_sniper_card_opens_without_error(user):

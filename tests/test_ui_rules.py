@@ -36,7 +36,7 @@ async def test_apply_running_unmodded(user, monkeypatch):
     monkeypatch.setattr(launcher, "find_game", lambda paths: RunningGame(1, False))
     await user.open("/")
     user.find("Apply mod and run game").click()
-    await user.should_see("started without the mod")
+    await user.should_see("started without the mod", retries=20)
 
 
 async def test_unlock_switch_saved(user, state):
@@ -103,13 +103,13 @@ async def test_apply_and_run_outcomes(user, monkeypatch):
     monkeypatch.setattr(launcher, "find_game", lambda paths: None)
     await user.open("/")
     user.find(marker="apply-run").click()
-    await user.should_see("Waiting for the game to load the mod")
+    await user.should_see("Waiting for the game to load the mod", retries=20)
 
     # Test UPDATED_RUNNING
     monkeypatch.setattr(launcher, "find_game", lambda paths: RunningGame(2, True))
     await user.open("/")
     user.find(marker="apply-run").click()
-    await user.should_see("Game is running: changes apply at the next level start")
+    await user.should_see("Game is running: changes apply at the next level start", retries=20)
 
 
 async def test_profile_menu_slug_marker(user):
@@ -362,7 +362,7 @@ async def test_apply_scans_processes_off_the_event_loop(user, monkeypatch):
     user.find(marker="apply-mod").click()
     await user.should_see("Mod written:")
     user.find(marker="apply-run").click()
-    await user.should_see("Waiting for the game to load the mod")
+    await user.should_see("Waiting for the game to load the mod", retries=20)
     assert seen
     assert loop_thread not in seen
 

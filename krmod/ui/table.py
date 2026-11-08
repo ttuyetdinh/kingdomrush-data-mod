@@ -11,7 +11,7 @@ from krmod.model.stepping import step_cell
 from krmod.model.values import KeyPath, decode_damage_type, path_str
 from krmod.state import AppState
 from krmod.ui.pctbox import PctBox
-from krmod.ui.sliders import format_val
+from krmod.ui.formatting import format_val
 from krmod.ui.spinbox import SpinBox
 
 _CHANGED_CLASSES = "bg-amber-100 border-amber-500 font-bold text-amber-900"
@@ -274,7 +274,7 @@ def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Ca
 
                             # Row % column (pinned right):
                             with ui.element("td").classes(f"{cell} px-3 text-right {_PIN_R}"):
-                                if not row.read_only:
+                                if not row.read_only and state.row_scalable(row):
                                     with ui.row().classes("justify-end no-wrap"):
                                         pct_boxes.append(
                                             PctBox(
