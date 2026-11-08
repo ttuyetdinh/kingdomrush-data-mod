@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import math
-import re
 from typing import Sequence
 
 from krmod.model.categories import CATEGORY_NAMES, category_of
 from krmod.model.grouping import GroupIndex
 from krmod.model.rows import StatRow, build_rows
 from krmod.model.scaling import c2_range, common_pct, scale, warn
+from krmod.model.stepping import parse_number
 from krmod.model.values import BalanceTree, KeyPath, Leaf, path_str
 from krmod.modgen.launcher import RunOutcome, apply_and_run
 from krmod.modgen.writer import ApplyResult, apply_mod, write_live
@@ -20,10 +20,6 @@ from krmod.profiles import (
     ProfileStore,
     stale_changes,
     validate_speed_keys,
-)
-
-_ASCII_NUMBER_RE = re.compile(
-    r"^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$"
 )
 
 
@@ -118,20 +114,8 @@ class AppState:
         return warn(path, float(value))
 
     def parse_and_set(self, path: KeyPath, text: str) -> tuple[bool, str | None]:
-        if not isinstance(text, str):
-            return False, "Not a number."
-        s = text.strip()
-        if not s:
-            return False, "Value cannot be empty."
-        if not _ASCII_NUMBER_RE.match(s):
-            return False, "Not a number."
         try:
-            val = float(s)
-        except ValueError:
-            return False, "Not a number."
-        if not math.isfinite(val):
-            return False, "Not a number."
-        try:
+            val = parse_number(text)
             warning = self.set_value(path, val)
             return True, warning
         except ValueError as exc:
