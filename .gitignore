@@ -12,6 +12,7 @@ dist/
 # Owner data and generated caches
 profiles/
 cache/
+settings.json
 
 # Brainstorm companion files
 .superpowers/
@@ -21,3 +22,9 @@ extracted/
 decompiled/
 *.lua
 !mod_template/**/*.lua
+
+# Local-only planning copy and NiceGUI storage
+.planning/
+.nicegui/
+*.egg-info/
+.pytest_cache/
