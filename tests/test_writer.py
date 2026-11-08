@@ -108,6 +108,8 @@ def test_data_table_speed_keys_normalized(tree):
     assert dt["rules"] == {
         "unlock_tower_levels": True,
         "unlock_heroes": True,
+        "unlock_towers": False,
+        "unlock_spells": False,
         "extra_hero_points": 0,
         "extra_upgrade_points": 12,
     }

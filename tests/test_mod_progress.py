@@ -44,6 +44,35 @@ def test_unlock_heroes_passes_heroes_only(harness):
     assert "unlock heroes: all" in harness.log()
 
 
+def test_unlock_spells_passes_spells_only(harness):
+    harness.lua(BAL + "; " + MAP)
+    harness.write_data([], rules={"unlock_spells": True})
+    harness.run_level()
+    assert _unlocked(harness, "power_royal_edict") == "true"
+    assert _unlocked(harness, "hero_ashbite") == "false"
+    assert _unlocked(harness, "tower_wizard") == "false"
+    assert "unlock spells: all" in harness.log() and "unlock heroes" not in harness.log()
+
+
+def test_both_unlocks_keep_towers_locked(harness):
+    harness.lua(BAL + "; " + MAP)
+    harness.write_data([], rules={"unlock_heroes": True, "unlock_spells": True})
+    harness.run_level()
+    assert _unlocked(harness, "hero_oni") == "true"
+    assert _unlocked(harness, "power_musketeers") == "true"
+    assert _unlocked(harness, "tower_sniper") == "false"
+
+
+def test_unlock_towers_passes_tower_types_only(harness):
+    harness.lua(BAL + "; " + MAP)
+    harness.write_data([], rules={"unlock_towers": True})
+    harness.run_level()
+    assert _unlocked(harness, "tower_sniper") == "true"
+    assert _unlocked(harness, "hero_oni") == "false"
+    assert _unlocked(harness, "power_musketeers") == "false"
+    assert "unlock towers: all" in harness.log()
+
+
 def test_unlock_heroes_off_keeps_star_locks_and_wraps_once(harness):
     harness.lua(BAL + "; " + MAP)
     harness.write_data([], rules={"unlock_heroes": True})

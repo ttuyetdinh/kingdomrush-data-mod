@@ -13,6 +13,13 @@ from krmod.state import AppState
 from krmod.ui.livebox import LiveBox
 from krmod.ui.spinbox import SpinBox
 
+# Switches for the game's star locks: label, profile rule, marker, game screen.
+_STAR_UNLOCKS = (
+    ("Unlock all heroes", "unlock_heroes", "unlock-heroes-switch", "hero room"),
+    ("Unlock all towers", "unlock_towers", "unlock-towers-switch", "tower room"),
+    ("Unlock all spells", "unlock_spells", "unlock-spells-switch", "spell room"),
+)
+
 
 class PointsBox:
     """A label and a SpinBox bound to one extra points rule of the active profile.
@@ -82,17 +89,18 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
                 on_change=lambda e: state.set_rule("unlock_tower_levels", bool(e.value)),
             ).mark("unlock-switch")
             ui.label(
-                "Removes level restrictions from towers on all stages while keeping tower type unlocks vanilla."
+                "Removes the upgrade level limit of towers inside every stage."
             ).classes("text-xs text-slate-400 mt-1")
-            ui.switch(
-                "Unlock all heroes",
-                value=state.profile.unlock_heroes,
-                on_change=lambda e: state.set_rule("unlock_heroes", bool(e.value)),
-            ).mark("unlock-heroes-switch").classes("mt-3")
-            ui.label(
-                "Every hero is available in the hero room without collecting stars. "
-                "No unlock is written to your save: turn it off and the star requirements come back."
-            ).classes("text-xs text-slate-400 mt-1")
+            for label, rule, marker, room in _STAR_UNLOCKS:
+                ui.switch(
+                    label,
+                    value=getattr(state.profile, rule),
+                    on_change=lambda e, rule=rule: state.set_rule(rule, bool(e.value)),
+                ).mark(marker).classes("mt-3")
+                ui.label(
+                    f"Everything in the {room} is available without collecting stars. No unlock is "
+                    "written to your save: turn it off and the star requirements come back."
+                ).classes("text-xs text-slate-400 mt-1")
             with ui.column().classes("gap-1 mt-4"):
                 PointsBox(state, "extra_hero_points", "Extra hero skill points", "extra-hero-points")
                 PointsBox(state, "extra_upgrade_points", "Extra skill tree points", "extra-upgrade-points")

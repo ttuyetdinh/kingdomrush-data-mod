@@ -89,11 +89,13 @@ local function main(base, found, stats)
   step("progress", function()
     local progress = dofile(base .. "/mods/kr_mod/progress.lua")
     progress.apply_points(K, require("game_settings"), data.rules, log)
-    local hooked = progress.install_heroes(K, rawget(_G, "screen_map"), function()
-      return K.data.rules.unlock_heroes == true
+    local hooked = progress.install_star_unlocks(K, rawget(_G, "screen_map"), function()
+      return K.data.rules
     end)
-    if data.rules.unlock_heroes == true then
-      log(hooked and "unlock heroes: all" or "unlock heroes: waiting for the map screen")
+    for _, kind in ipairs({ "heroes", "towers", "spells" }) do
+      if data.rules["unlock_" .. kind] == true then
+        log("unlock " .. kind .. (hooked and ": all" or ": waiting for the map screen"))
+      end
     end
   end)
 

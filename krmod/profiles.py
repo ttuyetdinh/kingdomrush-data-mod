@@ -32,6 +32,8 @@ _DEFAULT_NAME = "Default"
 RULE_DEFAULTS: dict[str, bool | int] = {
     "unlock_tower_levels": False,
     "unlock_heroes": False,
+    "unlock_towers": False,
+    "unlock_spells": False,
     "extra_hero_points": 0,
     "extra_upgrade_points": 0,
 }
@@ -116,6 +118,8 @@ class Profile:
     changes: dict[KeyPath, float] = field(default_factory=dict)
     unlock_tower_levels: bool = False
     unlock_heroes: bool = False
+    unlock_towers: bool = False
+    unlock_spells: bool = False
     extra_hero_points: int = 0
     extra_upgrade_points: int = 0
     live: LiveSettings = field(default_factory=LiveSettings)

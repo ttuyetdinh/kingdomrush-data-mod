@@ -1,6 +1,6 @@
--- Hero unlock and extra skill points. The game loads the mod when the map screen opens
--- (and at every level start), so these show in the hero room and the skill tree screen.
--- Nothing here touches the save: the game works points out from these tables every time.
+-- Hero, tower and spell unlocks and extra skill points. The game loads the mod when the map
+-- screen opens (and at every level start), so these show in the hero, tower, spell and skill
+-- tree screens. Nothing here writes the save: the game works these out every time.
 local M = {}
 
 -- game_settings tables: total hero skill points per hero level, and total skill tree
@@ -51,23 +51,37 @@ function M.apply_points(K, GS, rules, log)
   end
 end
 
+-- Content names of the star check, by rule: "hero_<name>", "tower_<name>", "power_<name>".
+local STAR_PREFIXES = {
+  unlock_heroes = "hero_",
+  unlock_towers = "tower_",
+  unlock_spells = "power_",
+}
+
+-- True when the name belongs to a rule that is on in rules.
+function M.passes(rules, name)
+  if type(name) ~= "string" or type(rules) ~= "table" then return false end
+  for rule, prefix in pairs(STAR_PREFIXES) do
+    if rules[rule] == true and name:sub(1, #prefix) == prefix then return true end
+  end
+  return false
+end
+
 -- screen_map:is_content_stage_unlocked(name, user_data) is the star check of the hero,
--- tower and spell rooms. Heroes ("hero_<name>") pass while is_enabled() is true; towers and
--- spells keep the game's check. Wraps each screen_map function once; returns false when the
--- map screen is not loaded.
-function M.install_heroes(K, map, is_enabled)
+-- tower and spell rooms. Names for which M.passes(get_rules(), name) is true are unlocked;
+-- everything else keeps the game's check. Wraps each screen_map function once; returns
+-- false when the map screen is not loaded.
+function M.install_star_unlocks(K, map, get_rules)
   if type(map) ~= "table" or type(map.is_content_stage_unlocked) ~= "function" then
     return false
   end
-  if map.is_content_stage_unlocked == K.heroes_wrapper then return true end
+  if map.is_content_stage_unlocked == K.star_wrapper then return true end
   local original = map.is_content_stage_unlocked
-  K.heroes_wrapper = function(self, name, ...)
-    if type(name) == "string" and name:sub(1, 5) == "hero_" and is_enabled() then
-      return true
-    end
+  K.star_wrapper = function(self, name, ...)
+    if M.passes(get_rules(), name) then return true end
     return original(self, name, ...)
   end
-  map.is_content_stage_unlocked = K.heroes_wrapper
+  map.is_content_stage_unlocked = K.star_wrapper
   return true
 end
 
