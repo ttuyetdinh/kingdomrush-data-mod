@@ -23,7 +23,7 @@ All user configurations are stored locally inside the repository folder:
 
 ## Choosing the Game Folder
 
-By default the app looks for the game in the folder that contains the kingdomrush-data-mod folder. To use another folder, click the folder icon in the top bar (the tooltip shows the current folder) and choose the folder that contains Kingdom Rush Genesis.exe and lua51.dll. If the game is not found at startup, the error page offers the same choice. Your profiles and changes are kept when you switch.
+By default the app looks for the game in the folder that contains the app folder: the kingdomrush-data-mod folder when run from source, or the folder that holds KrGenesisMod.exe. To use another folder, click the folder icon in the top bar (the tooltip shows the current folder) and choose the folder that contains Kingdom Rush Genesis.exe and lua51.dll. If the game is not found at startup, the error page offers the same choice. Your profiles and changes are kept when you switch.
 
 The choice is saved in settings.json inside the app folder, never in AppData. The game folder is picked in this order: the KRMOD_GAME_DIR environment variable (for development and tests), then the saved choice, then the default above. Delete settings.json to go back to the default. Only the mods folder of the chosen game folder is ever written.
 
@@ -62,7 +62,13 @@ To build the standalone Windows executable:
 scripts\build.bat
 ```
 
-This compiles the app into dist\KrGenesisMod\KrGenesisMod.exe. The entire dist\KrGenesisMod folder, containing KrGenesisMod.exe alongside _internal and supporting data, must stay together and remain in place inside kingdomrush-data-mod. The executable relies on this relative location to discover the game installation, profiles, and local caches.
+This builds one file, dist\KrGenesisMod.exe, with Python, the window library and the mod template inside it. To use it on any machine:
+
+1. Make a folder inside the game folder, for example <game folder>\KrGenesisMod.
+2. Copy KrGenesisMod.exe into it and double-click it.
+3. To keep your edits, also copy your profiles folder next to the exe.
+
+The exe keeps everything beside itself: profiles\, settings.json and cache\ (portraits, app.log, window storage). Each start it unpacks itself into a runtime\ folder in the folder it is started from (double-click or a shortcut: the exe's own folder), which takes a few seconds, and removes that copy when the window closes; a copy left in the exe's folder by a crash is removed at the next start. If the exe is not inside the game folder, choose the game folder with the folder icon.
 
 ## Launching the Modded Game
 

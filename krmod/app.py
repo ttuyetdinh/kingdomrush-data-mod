@@ -6,11 +6,10 @@ import sys
 import time
 from pathlib import Path
 
+from krmod.paths import default_repo_dir, remove_stale_runtime  # does not import nicegui
+
 # Compute cache directory and set NICEGUI_STORAGE_PATH before importing nicegui:
-if getattr(sys, "frozen", False):
-    _repo_dir = Path(sys.executable).resolve().parents[2]
-else:
-    _repo_dir = Path(__file__).resolve().parents[1]
+_repo_dir = default_repo_dir()
 _cache_dir = _repo_dir / "cache"
 _nicegui_storage = _cache_dir / "nicegui"
 _nicegui_storage.mkdir(parents=True, exist_ok=True)
@@ -22,6 +21,11 @@ if sys.stdout is None or sys.stderr is None:
     sys.stdout = sys.stdout or _log
     sys.stderr = sys.stderr or _log
     print(f"KrGenesis Mod started, pid {os.getpid()}")
+
+# The single-file exe unpacks into runtime\ next to it; clear copies a crash or kill left behind.
+if getattr(sys, "frozen", False):
+    for _name in remove_stale_runtime(_repo_dir, Path(getattr(sys, "_MEIPASS", ""))):
+        print(f"removed stale runtime copy {_name}")
 
 from nicegui import app as nicegui_app, ui  # noqa: E402
 

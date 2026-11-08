@@ -15,7 +15,7 @@
 - C1 slider: 0% to 500%, piecewise with 100% at the centre (left half 0→100, right half 100→500). Skips cells whose original is 0. C2 range: 0 to max(10, 3 × largest absolute original in the row).
 - Rounding: whole-number originals give whole results (round half up, away from zero); decimal originals keep 2 decimals (round half up).
 - Warn (allow, but flag) negative values, and 0 for any key containing cooldown or duration.
-- Window title "KrGenesis Mod". Internal server binds 127.0.0.1 only. Exe: kingdomrush-data-mod\dist\KrGenesisMod\KrGenesisMod.exe.
+- Window title "KrGenesis Mod". Internal server binds 127.0.0.1 only. Exe: one file, dist\KrGenesisMod.exe (PyInstaller onefile, unpacks into runtime\ in its start folder). Frozen, the app folder (profiles, settings.json, cache) is the exe's own folder and the default game folder is its parent.
 - Git: work on feature branch feat/krgenesis-mod cut from origin/main, then git branch --unset-upstream; first push git push -u origin feat/krgenesis-mod. Parallel tasks use isolated worktrees merged back into that branch. No AI attribution in commits or PRs. No em-dashes in prose.
 - The loader must never crash the game: every section runs under pcall and logs errors to mods\kr_mod_log.txt.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sys
 from dataclasses import dataclass
 from functools import cached_property
@@ -13,6 +14,8 @@ from typing import Any
 EXE_NAME = "Kingdom Rush Genesis.exe"
 LUA_DLL_NAME = "lua51.dll"
 SETTINGS_NAME = "settings.json"
+# The single-file exe unpacks itself here, next to the exe (scripts/build.bat --runtime-tmpdir).
+RUNTIME_DIR_NAME = "runtime"
 
 
 class GameNotFoundError(Exception):
@@ -20,10 +23,40 @@ class GameNotFoundError(Exception):
 
 
 def default_repo_dir() -> Path:
-    """The app folder: the repo root from source, three levels above the exe when frozen."""
+    """The app folder: the repo root from source, the exe's own folder when frozen.
+
+    Profiles, settings.json and the cache live here, so the single-file exe can be copied
+    anywhere (best: its own folder inside the game folder) and keeps its data beside it.
+    """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parents[2]
+        return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[1]
+
+
+def remove_stale_runtime(repo_dir: Path, current: Path | None) -> list[str]:
+    """Delete unpacked copies the single-file exe left in <repo_dir>/runtime after a crash or a
+    forced kill (a normal close removes its own). current is this run's copy (sys._MEIPASS).
+
+    A copy still used by another open instance has open files, so Windows refuses to rename
+    it: rename first and only delete what could be renamed, never a half of a running copy.
+    Returns the names removed.
+    """
+    removed: list[str] = []
+    runtime = repo_dir / RUNTIME_DIR_NAME
+    if not runtime.is_dir():
+        return removed
+    keep = current.resolve() if current else None
+    for folder in runtime.glob("_MEI*"):
+        if not folder.is_dir() or folder.resolve() == keep:
+            continue
+        doomed = folder.with_name(folder.name + ".old")
+        try:
+            folder.rename(doomed)
+        except OSError:
+            continue
+        shutil.rmtree(doomed, ignore_errors=True)
+        removed.append(folder.name)
+    return removed
 
 
 def load_settings(repo_dir: Path) -> dict[str, Any]:

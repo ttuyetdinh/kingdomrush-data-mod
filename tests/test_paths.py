@@ -13,6 +13,8 @@ from krmod.paths import (
     save_cards_folded,
     save_game_dir_setting,
     save_settings,
+    default_repo_dir,
+    remove_stale_runtime,
     validate_game_dir,
 )
 
@@ -165,3 +167,24 @@ def test_portraits_dir_differs_per_game_folder(tmp_path):
     assert a.portraits_dir != b.portraits_dir
     assert a.portraits_dir is a.portraits_dir  # computed once per GamePaths
     assert a.portraits_dir.parent == b.portraits_dir.parent == tmp_path / "repo" / "cache" / "portraits"
+
+
+def test_frozen_app_folder_is_the_exe_folder(tmp_path, monkeypatch):
+    # The single-file exe keeps profiles, settings and cache beside itself.
+    exe = tmp_path / "game" / "KrGenesisMod" / "KrGenesisMod.exe"
+    monkeypatch.setattr("sys.frozen", True, raising=False)
+    monkeypatch.setattr("sys.executable", str(exe))
+    assert default_repo_dir() == exe.parent.resolve()
+
+
+def test_remove_stale_runtime_keeps_current_and_in_use_copies(tmp_path):
+    runtime = tmp_path / "runtime"
+    stale, current, in_use = (runtime / n for n in ("_MEI1", "_MEI2", "_MEI3"))
+    for folder in (stale, current, in_use):
+        (folder / "lib").mkdir(parents=True)
+        (folder / "lib" / "a.pyd").write_bytes(b"x")
+    with open(in_use / "lib" / "a.pyd", "rb"):  # another open instance holds its files
+        removed = remove_stale_runtime(tmp_path, current)
+    assert removed == ["_MEI1"]
+    assert not stale.exists() and current.is_dir() and (in_use / "lib" / "a.pyd").is_file()
+    assert remove_stale_runtime(tmp_path / "nowhere", None) == []
