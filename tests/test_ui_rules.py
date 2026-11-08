@@ -195,6 +195,21 @@ async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
     assert _box_text(user, "rules-enemy-mult") == "10"
 
 
+async def test_topbar_and_rules_live_boxes_stay_in_sync(user, state):
+    await user.open("/")
+    user.find(marker="enemy-mult-up").click()
+    assert state.profile.live.enemy_mult == 2.0
+    user.find(marker="troop-delta").clear().type("-2").trigger("keydown.enter")
+    assert state.profile.live.troop_delta == -2
+
+    user.find("Rules").click()
+    assert _box_text(user, "rules-enemy-mult") == "2"
+    assert _box_text(user, "rules-troop-delta") == "-2"
+    user.find(marker="rules-troop-delta-up").click()
+    assert _box_text(user, "troop-delta") == "-1"
+
+
+
 async def test_rules_tab_explains_live_controls(user):
     await user.open("/")
     user.find("Rules").click()

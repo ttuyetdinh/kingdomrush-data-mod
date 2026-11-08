@@ -11,7 +11,7 @@
 - Verified facts the tests pin: 5,857 numbers, 34 strings, 7 booleans, 1,665 tables, 0 aliased tables; towers.archers.price[1] = 70.
 - Profile stores changes only (path → value). A change equal to its original is removed.
 - Mod launch: Kingdom Rush Genesis.exe -balance_override mods.kr_mod, working directory = game folder.
-- Live controls: speed 1/2/3; enemy_mult is one of 0.25, 1, 2, ..., 10 (default 1); troop_delta is a whole number of extra soldiers per barracks from -10 to +10 (default 0; a barracks never goes below 0 soldiers). Speed keys default f5/f6/f7; forbidden keys: f1, f2, f3, space, escape, return, up, down, left, right.
+- Live controls: speed 1/2/3; enemy_mult is one of 0.25, 1, 2, ..., 10 (default 1); troop_delta is a whole number of extra soldiers per barracks from -10 to +10 (default 0; a barracks never goes below 0 soldiers, and a barracks or upgrade level whose game count is 0 stays 0). Speed keys default f5/f6/f7; forbidden keys: f1, f2, f3, space, escape, return, up, down, left, right.
 - C1 slider: 0% to 500%, piecewise with 100% at the centre (left half 0→100, right half 100→500). Skips cells whose original is 0. C2 range: 0 to max(10, 3 × largest absolute original in the row).
 - Rounding: whole-number originals give whole results (round half up, away from zero); decimal originals keep 2 decimals (round half up).
 - Warn (allow, but flag) negative values, and 0 for any key containing cooldown or duration.

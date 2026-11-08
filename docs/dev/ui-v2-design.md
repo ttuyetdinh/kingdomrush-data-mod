@@ -17,7 +17,7 @@ Owner requests collected after PR #1, built on branch feat/ui-number-boxes. The 
 
 ## Calls made by the builder (owner can override)
 
-- Troops range -10 to +10. Typed decimals round to the nearest whole number; out-of-range values clamp.
+- Troops range -10 to +10. Typed decimals round to the nearest whole number; out-of-range values clamp. A barracks (or upgrade level) whose game count is 0 stays at 0 for any Troops value, so no soldiers appear where the tower has none.
 - Enemies: typed values between steps snap to the nearest allowed value (ties go up). Shift has no effect on Enemies and Troops.
 - % boxes: 1% per step, 10% with Shift; typed values clamp to 0..500 and round to 0.1. A "mixed" box steps from 100%.
 - Level cells: a value at or above 0 never steps below 0; each step saves at once like Enter.

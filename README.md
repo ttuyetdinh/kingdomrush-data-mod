@@ -5,11 +5,12 @@ KrGenesis Mod is a desktop editor and live tuning tool for Kingdom Rush Genesis.
 ## Key Features
 
 - Safe and non-invasive: The application never modifies Kingdom Rush Genesis.exe or any original game file. Launching the game normally always runs the unmodified vanilla game.
-- Balance editing: Browse towers, troops, heroes, skills, enemies, items, and stages to adjust stats with automatic rounding and change tracking.
+- Balance editing: Browse towers, troops, heroes, skills, enemies, items, and stages. Type a value or use the up and down arrows (one step is the smallest digit of the game's value, Shift for ten steps). Row % and Quick scale boxes set a whole row or group to a percentage of the game's values (0% to 500%).
 - Progression rules: Optionally unlock all tower upgrade levels from the start.
 - Live speed hotkeys: Switch gameplay speed between x1, x2, and x3 using hotkeys F5, F6, and F7. When accelerated speed is active, an on-screen x2 or x3 badge appears during gameplay. Speed hotkeys can be customized in the Rules tab.
-- Live unit multipliers: Adjust enemy count and troop count multipliers from 0.5x to 3.0x in 0.25 steps.
-- Real-time vs level start timing: Live controls such as game speed, enemy multipliers, and troop multipliers update mid-level during active combat. Stat edits and tower unlock rules take effect at the next level start or stage restart.
+- Live enemy and troop counts: Enemies multiplies regular enemies (0.25 for a quarter, or 1 to 10; bosses always spawn). Troops adds or removes soldiers per barracks (-10 to +10; 0 is the default, and a large minus can leave a barracks empty).
+- Real-time vs level start timing: Live controls such as game speed, enemy count, and troop count update mid-level during active combat. Stat edits and tower unlock rules take effect at the next level start or stage restart.
+- Half-screen friendly: Below 1280 px wide the top bar uses two rows, and the card list can be folded to give the stat table more room.
 
 ## Profiles and Storage
 

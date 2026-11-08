@@ -11,7 +11,7 @@ UI_TABS: tuple[str, ...] = (
 from krmod.profiles import ProfileError, slug
 from krmod.state import AppState
 from krmod.ui import gamefolder
-from krmod.ui.sliders import live_slider
+from krmod.ui.livebox import LiveBox
 
 
 class TopBar:
@@ -38,10 +38,8 @@ class TopBar:
         self.topbar_right: ui.row
         self.tabs_el: ui.tabs
         self.speed_buttons: dict[int, ui.button] = {}
-        self.enemy_slider: ui.slider
-        self.enemy_label: ui.label
-        self.troop_slider: ui.slider
-        self.troop_label: ui.label
+        self.enemy_box: LiveBox
+        self.troop_box: LiveBox
         self._build()
 
     def _build(self) -> None:
@@ -103,33 +101,9 @@ class TopBar:
                         self.speed_buttons[s] = btn
                 self._update_speed_buttons()
 
-                # Enemy multiplier slider
-                with ui.row().classes("items-center gap-1 flex-nowrap shrink-0"):
-                    self.enemy_label, self.enemy_slider = live_slider(
-                        self.state,
-                        "enemy_mult",
-                        "Enemies",
-                        "enemy-mult",
-                        self.on_refresh,
-                        slider_classes="w-full",
-                        wrapper_classes="w-[75px] shrink-0",
-                        slider_props="track-color=grey-7",
-                        label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
-                    )
-
-                # Troop multiplier slider
-                with ui.row().classes("items-center gap-1 flex-nowrap shrink-0"):
-                    self.troop_label, self.troop_slider = live_slider(
-                        self.state,
-                        "troop_mult",
-                        "Troops",
-                        "troop-mult",
-                        self.on_refresh,
-                        slider_classes="w-full",
-                        wrapper_classes="w-[75px] shrink-0",
-                        slider_props="track-color=grey-7",
-                        label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
-                    )
+                # Live enemy multiplier and troop count boxes
+                self.enemy_box = LiveBox(self.state, "enemy_mult", "enemy-mult", self.on_refresh, dark=True)
+                self.troop_box = LiveBox(self.state, "troop_delta", "troop-delta", self.on_refresh, dark=True)
 
                 # Right end: pushed to the right of row 2
                 with ui.row().classes("items-center gap-1.5 flex-nowrap shrink-0 ml-auto"):
@@ -342,12 +316,8 @@ class TopBar:
         self.profile_button.text = self.state.profile.name
         self._build_profile_menu()
         self._update_speed_buttons()
-        e_val = self.state.profile.live.enemy_mult
-        self.enemy_slider.value = e_val
-        self.enemy_label.text = f"Enemies {e_val:g}x"
-        t_val = self.state.profile.live.troop_mult
-        self.troop_slider.value = t_val
-        self.troop_label.text = f"Troops {t_val:g}x"
+        self.enemy_box.refresh()
+        self.troop_box.refresh()
 
     def _update_speed_buttons(self) -> None:
         curr_speed = self.state.profile.live.speed
