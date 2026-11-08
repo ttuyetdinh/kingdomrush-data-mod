@@ -48,12 +48,27 @@ def load_state(repo_dir: Path | None = None) -> tuple[AppState | None, str | Non
         return None, str(exc)
 
 
+WEBVIEW2_ARGS_ENV = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+# Edge WebView2 otherwise downloads components this app never uses into cache\webview
+# (video DRM, ad-filter lists, speech recognition, hyphenation: about 40 MB) and phones home.
+LEAN_WEBVIEW_FLAGS = ("--disable-component-update", "--disable-background-networking")
+
+
+def lean_webview_args(existing: str) -> str:
+    """existing WebView2 browser arguments plus LEAN_WEBVIEW_FLAGS, each flag once."""
+    args = existing.split()
+    args += [flag for flag in LEAN_WEBVIEW_FLAGS if flag not in args]
+    return " ".join(args)
+
+
 def main() -> None:
     """Launch the KrGenesis Mod application."""
     webview_storage = _cache_dir / "webview"
     webview_storage.mkdir(parents=True, exist_ok=True)
     nicegui_app.native.start_args["storage_path"] = str(webview_storage)
     nicegui_app.native.start_args["private_mode"] = False
+    # Set before ui.run starts the window process, which inherits the environment.
+    os.environ[WEBVIEW2_ARGS_ENV] = lean_webview_args(os.environ.get(WEBVIEW2_ARGS_ENV, ""))
     # The layout holds down to 800 x 500 (two-row top bar, scrolling editor): no smaller window.
     nicegui_app.native.window_args["min_size"] = (800, 500)
     # Window connection events in app.log help diagnose a window that stops responding.
