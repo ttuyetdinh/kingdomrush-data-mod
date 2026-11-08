@@ -86,6 +86,25 @@ local function main(base, found, stats)
     end, log)
   end)
 
+  step("progress", function()
+    local progress = dofile(base .. "/mods/kr_mod/progress.lua")
+    progress.apply_points(K, require("game_settings"), data.rules, log)
+    local hooked = progress.install_star_unlocks(K, rawget(_G, "screen_map"), function()
+      return K.data.rules
+    end)
+    for _, kind in ipairs({ "heroes", "towers", "spells" }) do
+      if data.rules["unlock_" .. kind] == true then
+        log("unlock " .. kind .. (hooked and ": all" or ": waiting for the map screen"))
+      end
+    end
+    local spells_hooked = progress.install_spell_points(K, rawget(_G, "PowerRoomView"), function()
+      return K.data.rules.extra_spell_points
+    end)
+    if not spells_hooked and (tonumber(data.rules.extra_spell_points) or 0) > 0 then
+      log("spell points: waiting for the map screen")
+    end
+  end)
+
   local ctx = { base = base, log = log }
   for _, name in ipairs({ "live", "enemies", "troops" }) do
     step("module " .. name, function()

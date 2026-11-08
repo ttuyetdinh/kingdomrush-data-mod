@@ -100,10 +100,20 @@ def test_data_table_speed_keys_normalized(tree):
         changes={},
         speed_keys=("F5", "  F6  ", "F7"),
         unlock_tower_levels=True,
+        unlock_heroes=True,
+        extra_upgrade_points=12,
     )
     dt = data_table(p, tree)
     assert dt["speed_keys"] == ["f5", "f6", "f7"]
-    assert dt["rules"] == {"unlock_tower_levels": True}
+    assert dt["rules"] == {
+        "unlock_tower_levels": True,
+        "unlock_heroes": True,
+        "unlock_towers": False,
+        "unlock_spells": False,
+        "extra_hero_points": 0,
+        "extra_spell_points": 0,
+        "extra_upgrade_points": 12,
+    }
     assert dt["version"] == 1
 
 

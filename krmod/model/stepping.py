@@ -1,4 +1,5 @@
-"""Step and parse rules for the number boxes: level cells, percentage boxes and live controls."""
+"""Step and parse rules for the number boxes: level cells, percentage boxes, live controls
+and the extra points boxes."""
 
 from __future__ import annotations
 
@@ -15,6 +16,8 @@ _TENTH = Decimal("0.1")
 ENEMY_VALUES: tuple[float, ...] = (0.25,) + tuple(float(n) for n in range(1, 11))
 TROOP_MIN = -10
 TROOP_MAX = 10
+# Extra hero skill points and skill tree points are added to the game's own totals.
+EXTRA_POINTS_MAX = 999
 
 _ASCII_NUMBER_RE = re.compile(r"^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$")
 
@@ -87,3 +90,13 @@ def clamp_troop(value: float) -> int:
 
 def step_troop(current: int, direction: int) -> int:
     return clamp_troop(current + direction)
+
+
+def clamp_points(value: float) -> int:
+    """Whole number of extra points, half up, clamped to 0..EXTRA_POINTS_MAX."""
+    whole = int(Decimal(str(value)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+    return min(EXTRA_POINTS_MAX, max(0, whole))
+
+
+def step_points(current: int, direction: int, shift: bool = False) -> int:
+    return clamp_points(current + direction * (SHIFT_FACTOR if shift else 1))

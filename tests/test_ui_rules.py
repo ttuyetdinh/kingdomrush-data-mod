@@ -39,11 +39,38 @@ async def test_apply_running_unmodded(user, monkeypatch):
     await user.should_see("started without the mod", retries=20)
 
 
-async def test_unlock_switch_saved(user, state):
+async def test_unlock_switches_saved(user, state):
     await user.open("/")
     user.find("Rules").click()
     user.find("Unlock all tower levels").click()
-    assert ProfileStore(state.paths.profiles_dir).active().unlock_tower_levels is True
+    user.find("Unlock all heroes").click()
+    user.find("Unlock all spells").click()
+    user.find("Unlock all towers").click()
+    saved = ProfileStore(state.paths.profiles_dir).active()
+    assert (saved.unlock_tower_levels, saved.unlock_heroes, saved.unlock_spells, saved.unlock_towers) == (
+        True, True, True, True,
+    )
+
+
+async def test_extra_points_boxes_step_clamp_and_save(user, state):
+    await user.open("/")
+    user.find("Rules").click()
+    _step(user, "extra-hero-points", 1, shift=True)
+    _step(user, "extra-hero-points", 1)
+    assert state.profile.extra_hero_points == 11
+    _step(user, "extra-hero-points", -1, shift=True)
+    _step(user, "extra-hero-points", -1, shift=True)
+    assert _box_text(user, "extra-hero-points") == "0"
+    _step(user, "extra-spell-points", 1, shift=True)
+    assert ProfileStore(state.paths.profiles_dir).active().extra_spell_points == 10
+    _commit(user, "extra-upgrade-points", "12.5")
+    assert state.profile.extra_upgrade_points == 13
+    _commit(user, "extra-upgrade-points", "5000")
+    assert _box_text(user, "extra-upgrade-points") == "999"
+    _commit(user, "extra-upgrade-points", "abc")
+    await user.should_see("Not a number")
+    assert _box_text(user, "extra-upgrade-points") == "999"
+    assert ProfileStore(state.paths.profiles_dir).active().extra_upgrade_points == 999
 
 async def test_speed_button_markers_and_highlight(user, state):
     await user.open("/")
@@ -79,7 +106,7 @@ async def test_reset_all_dialog(user, state):
 async def test_apply_mod_notification(user, state):
     await user.open("/")
     user.find(marker="apply-mod").click()
-    await user.should_see("Mod written:")
+    await user.should_see("Mod written:", retries=20)
 
 
 async def test_stale_changes_displayed_when_present(user, state):

@@ -11,7 +11,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from krmod.model.stepping import ENEMY_VALUES, TROOP_MAX, TROOP_MIN, clamp_troop, snap_enemy
+from krmod.model.stepping import (
+    ENEMY_VALUES,
+    EXTRA_POINTS_MAX,
+    TROOP_MAX,
+    TROOP_MIN,
+    clamp_troop,
+    snap_enemy,
+)
 from krmod.model.values import BalanceTree, KeyPath
 
 FORBIDDEN_KEYS = frozenset(
@@ -21,6 +28,16 @@ FORBIDDEN_KEYS = frozenset(
 _FORMAT_VERSION = 1
 _ACTIVE_FILE = "_active.json"
 _DEFAULT_NAME = "Default"
+# Profile fields saved under "rules" and written to kr_mod_data.lua, with their defaults.
+RULE_DEFAULTS: dict[str, bool | int] = {
+    "unlock_tower_levels": False,
+    "unlock_heroes": False,
+    "unlock_towers": False,
+    "unlock_spells": False,
+    "extra_hero_points": 0,
+    "extra_spell_points": 0,
+    "extra_upgrade_points": 0,
+}
 
 
 class ProfileError(ValueError):
@@ -101,6 +118,12 @@ class Profile:
     name: str
     changes: dict[KeyPath, float] = field(default_factory=dict)
     unlock_tower_levels: bool = False
+    unlock_heroes: bool = False
+    unlock_towers: bool = False
+    unlock_spells: bool = False
+    extra_hero_points: int = 0
+    extra_spell_points: int = 0
+    extra_upgrade_points: int = 0
     live: LiveSettings = field(default_factory=LiveSettings)
     speed_keys: tuple[str, str, str] = ("f5", "f6", "f7")
 
@@ -123,9 +146,26 @@ def _clean_name(name: str) -> str:
     return name.strip()
 
 
+def rules_dict(profile: Profile) -> dict[str, bool | int]:
+    """The profile's rules, as saved in the profile JSON and in kr_mod_data.lua."""
+    return {name: getattr(profile, name) for name in RULE_DEFAULTS}
+
+
+def validate_rule(name: str, value: object) -> None:
+    if name not in RULE_DEFAULTS:
+        raise ProfileError(f"unknown rule {name!r}")
+    if isinstance(RULE_DEFAULTS[name], bool):
+        if not isinstance(value, bool):
+            raise ProfileError(f"{name} must be true or false")
+    elif isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= EXTRA_POINTS_MAX:
+        raise ProfileError(f"{name} must be a whole number from 0 to {EXTRA_POINTS_MAX}, got {value!r}")
+
+
 def _validate_profile(profile: Profile) -> None:
     profile.live.validate()
     validate_speed_keys(profile.speed_keys)
+    for name, value in rules_dict(profile).items():
+        validate_rule(name, value)
     for path, value in profile.changes.items():
         if not isinstance(path, tuple) or not path or not all(
             isinstance(seg, (str, int)) and not isinstance(seg, bool) for seg in path
@@ -142,7 +182,7 @@ def _to_json(profile: Profile) -> dict:
         "changes": [
             {"path": list(path), "value": value} for path, value in profile.changes.items()
         ],
-        "rules": {"unlock_tower_levels": bool(profile.unlock_tower_levels)},
+        "rules": rules_dict(profile),
         "live": {
             "speed": profile.live.speed,
             "enemy_mult": profile.live.enemy_mult,
@@ -184,16 +224,14 @@ def _from_json(data: object) -> Profile:
     live = data.get("live", {})
     if not isinstance(rules, dict) or not isinstance(live, dict):
         raise ProfileError("rules and live must be objects")
-    unlock = rules.get("unlock_tower_levels", False)
-    if not isinstance(unlock, bool):
-        raise ProfileError("unlock_tower_levels must be a boolean")
+    rule_values = {name: rules.get(name, default) for name, default in RULE_DEFAULTS.items()}
     keys = data.get("speed_keys", ["f5", "f6", "f7"])
     if not isinstance(keys, list):
         raise ProfileError("speed_keys must be a list")
     profile = Profile(
         name=name,
         changes=changes,
-        unlock_tower_levels=unlock,
+        **rule_values,
         live=LiveSettings(
             live.get("speed", 1),
             _snap_enemy_setting(live.get("enemy_mult", 1.0)),

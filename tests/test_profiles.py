@@ -34,16 +34,58 @@ def test_json_format(tmp_path):
     p = s.create("Easy mode")
     p.changes[("towers", "archers", "price", 1)] = 7
     p.unlock_tower_levels = True
+    p.extra_hero_points = 5
     s.save(p)
     data = json.loads((tmp_path / "easy-mode.json").read_text(encoding="utf-8"))
     assert data == {
         "version": 1,
         "name": "Easy mode",
         "changes": [{"path": ["towers", "archers", "price", 1], "value": 7}],
-        "rules": {"unlock_tower_levels": True},
+        "rules": {
+            "unlock_tower_levels": True,
+            "unlock_heroes": False,
+            "unlock_towers": False,
+            "unlock_spells": False,
+            "extra_hero_points": 5,
+            "extra_spell_points": 0,
+            "extra_upgrade_points": 0,
+        },
         "live": {"speed": 1, "enemy_mult": 1.0, "troop_delta": 0},
         "speed_keys": ["f5", "f6", "f7"],
     }
+
+
+def test_profile_saved_before_hero_rules_loads_with_defaults(tmp_path):
+    (tmp_path / "old.json").write_text(
+        json.dumps({"version": 1, "name": "Old", "rules": {"unlock_tower_levels": True}}),
+        encoding="utf-8",
+    )
+    s = ProfileStore(tmp_path)
+    s.switch("Old")
+    p = s.active()
+    assert (
+        p.unlock_tower_levels, p.unlock_heroes, p.unlock_towers, p.unlock_spells,
+        p.extra_hero_points, p.extra_spell_points, p.extra_upgrade_points,
+    ) == (True, False, False, False, 0, 0, 0)
+
+
+@pytest.mark.parametrize(
+    "rules",
+    [
+        {"extra_hero_points": -1},
+        {"extra_upgrade_points": 1000},
+        {"extra_spell_points": 2.5},
+        {"extra_hero_points": True},
+        {"unlock_heroes": 1},
+    ],
+)
+def test_invalid_hero_rules_are_rejected(tmp_path, rules):
+    s = ProfileStore(tmp_path)
+    p = s.active()
+    for name, value in rules.items():
+        setattr(p, name, value)
+    with pytest.raises(ProfileError):
+        s.save(p)
 
 
 def test_create_duplicate_rename_switch(tmp_path):
