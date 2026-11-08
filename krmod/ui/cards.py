@@ -1,29 +1,14 @@
 """Left column component: search box and unit cards grouped by category."""
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Callable
-from urllib.parse import quote
 
-from nicegui import app, ui
+from nicegui import ui
 
 from krmod.assets.portraits import portrait_for
 from krmod.model.grouping import Card
 from krmod.state import AppState
-
-_SERVED: dict[Path, str] = {}
-
-
-def portrait_src(path: Path) -> str:
-    """URL of a portrait file; each portrait folder gets one static route the first time."""
-    folder = path.parent.resolve()
-    url = _SERVED.get(folder)
-    if url is None:
-        url = f"/kr-portraits/{len(_SERVED)}"
-        app.add_static_files(url, folder)
-        _SERVED[folder] = url
-    return f"{url}/{quote(path.name)}"
-
+from krmod.ui.portrait import portrait_img
 
 
 class CardsColumn:
@@ -139,10 +124,8 @@ class CardsColumn:
             # Portrait or initials fallback
             portrait_path = portrait_for(card.id, self.state.paths.portraits_dir)
             if portrait_path and portrait_path.is_file():
-                # A plain lazy <img> from one static route: a tab can list hundreds of units, and a
-                # Quasar image per tile (each with its own file route) made tab switches slow.
-                img = ui.element("img").classes("w-10 h-10 rounded object-cover shadow-xs shrink-0")
-                img._props.update({"src": portrait_src(portrait_path), "loading": "lazy", "alt": ""})
+                # Lazy plain <img>: a tab can list hundreds of units.
+                portrait_img(portrait_path, "w-10 h-10 rounded object-cover shadow-xs shrink-0", lazy=True)
             else:
                 with ui.element("div").classes(
                     "w-10 h-10 rounded bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-xs shrink-0"

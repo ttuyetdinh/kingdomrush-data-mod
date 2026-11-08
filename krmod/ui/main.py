@@ -20,6 +20,7 @@ from krmod.profiles import ProfileStore
 from krmod.state import AppState
 from krmod.ui import applybar, gamefolder, rules, table
 from krmod.ui.cards import CardsColumn
+from krmod.ui.portrait import portrait_img
 from krmod.ui.topbar import TopBar
 
 # Process-wide state: one AppState serves every page (window or browser tab).
@@ -54,7 +55,7 @@ class Shell:
             portrait = portrait_for(card.id, self.state.paths.portraits_dir)
             with ui.row().classes("items-center gap-4 mb-4 shrink-0"):
                 if portrait and portrait.is_file():
-                    ui.image(str(portrait)).classes("w-14 h-14 rounded-lg shadow-sm")
+                    portrait_img(portrait, "w-14 h-14 rounded-lg shadow-sm object-cover")
                 else:
                     with ui.element("div").classes(
                         "w-14 h-14 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-lg"
