@@ -1,4 +1,4 @@
-"""Slider math, rounding rules and value warnings."""
+"""Percent scaling math, rounding rules and value warnings."""
 
 from __future__ import annotations
 
@@ -15,22 +15,6 @@ PCT_MID = 100.0
 _WHOLE = Decimal(1)
 _TENTH = Decimal("0.1")
 _HUNDRED = Decimal(100)
-
-
-def track_to_pct(t: float) -> float:
-    """Slider track position 0..1 to percent: left half 0..100, right half 100..500."""
-    t = min(1.0, max(0.0, t))
-    if t <= 0.5:
-        return PCT_MIN + (PCT_MID - PCT_MIN) * (t / 0.5)
-    return PCT_MID + (PCT_MAX - PCT_MID) * ((t - 0.5) / 0.5)
-
-
-def pct_to_track(p: float) -> float:
-    """Exact inverse of track_to_pct."""
-    p = min(PCT_MAX, max(PCT_MIN, p))
-    if p <= PCT_MID:
-        return (p - PCT_MIN) / (PCT_MID - PCT_MIN) * 0.5
-    return 0.5 + (p - PCT_MID) / (PCT_MAX - PCT_MID) * 0.5
 
 
 def _dec(x: float | int) -> Decimal:
@@ -74,13 +58,41 @@ def common_pct(pairs: Sequence[tuple[float, float]]) -> float | None:
         pct = float(candidate)
         if all(scale(o, pct) == c for o, c in nonzero):
             return pct
+        return _common_pct_search(nonzero)
+
+
+def _common_pct_search(nonzero: Sequence[tuple[float, float]]) -> float | None:
+    """Fallback for rows whose levels round differently: a percent on the 0.1 grid that maps every
+    pair, found inside the bracket every pair allows. Prefers a whole percent, then the middle."""
+    if any(abs(o) >= 1e15 for o, _ in nonzero):
         return None
-
-
-def c2_range(originals: Sequence[float]) -> tuple[float, float]:
-    """Row editing range: 0 to max(10, 3 x largest absolute original)."""
-    biggest = max((abs(o) for o in originals), default=0)
-    return (0.0, float(max(10, 3 * biggest)))
+    lows: list[Decimal] = []
+    highs: list[Decimal] = []
+    for o, c in nonzero:
+        d_o = _dec(round(float(o), 6))
+        step = _WHOLE if d_o == d_o.to_integral_value() else Decimal(10) ** -max(2, original_decimals(o))
+        mid = _dec(c) / _dec(o) * _HUNDRED
+        half = abs(step / 2 / d_o * _HUNDRED)
+        lows.append(mid - half)
+        highs.append(mid + half)
+    low = max(lows)
+    high = min(highs)
+    if low > high:
+        return None
+    first = (low * 10).to_integral_value(rounding=decimal.ROUND_FLOOR)
+    last = (high * 10).to_integral_value(rounding=decimal.ROUND_CEILING)
+    middle = (low + high) / 2
+    found: list[Decimal] = []
+    k = first
+    while k <= last:
+        pct = k / 10
+        if all(scale(o, float(pct)) == c for o, c in nonzero):
+            found.append(pct)
+        k += 1
+    if not found:
+        return None
+    whole = [f for f in found if f == f.to_integral_value()]
+    return float(min(whole or found, key=lambda f: abs(f - middle)))
 
 
 def warn(path: KeyPath, value: float) -> str | None:
