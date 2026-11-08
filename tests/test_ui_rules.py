@@ -137,6 +137,14 @@ def _box_text(user, marker):
     return list(user.find(marker=marker).elements)[0].value
 
 
+def _step(user, marker, direction, shift=False):
+    user.find(marker=marker).trigger("step", {"direction": direction, "shiftKey": shift})
+
+
+def _commit(user, marker, text):
+    user.find(marker=marker).clear().type(text).trigger("commit")
+
+
 async def test_live_boxes_on_rules_tab_step(user, state):
     await user.open("/")
     user.find("Rules").click()
@@ -144,21 +152,21 @@ async def test_live_boxes_on_rules_tab_step(user, state):
     assert _box_text(user, "rules-enemy-mult") == "1"
     assert _box_text(user, "rules-troop-delta") == "0"
 
-    user.find(marker="rules-enemy-mult-down").click()
+    _step(user, "rules-enemy-mult", -1)
     assert state.profile.live.enemy_mult == 0.25
     assert _box_text(user, "rules-enemy-mult") == "0.25"
-    user.find(marker="rules-enemy-mult-up").click()
+    _step(user, "rules-enemy-mult", 1)
     assert state.profile.live.enemy_mult == 1.0
-    user.find(marker="rules-enemy-mult-up").click()
+    _step(user, "rules-enemy-mult", 1)
     assert state.profile.live.enemy_mult == 2.0
 
-    user.find(marker="rules-troop-delta-up").click()
-    user.find(marker="rules-troop-delta-up").click()
+    _step(user, "rules-troop-delta", 1)
+    _step(user, "rules-troop-delta", 1)
     assert state.profile.live.troop_delta == 2
     assert _box_text(user, "rules-troop-delta") == "+2"
-    user.find(marker="rules-troop-delta-down").click()
-    user.find(marker="rules-troop-delta-down").click()
-    user.find(marker="rules-troop-delta-down").click()
+    _step(user, "rules-troop-delta", -1)
+    _step(user, "rules-troop-delta", -1)
+    _step(user, "rules-troop-delta", -1)
     assert state.profile.live.troop_delta == -1
     assert _box_text(user, "rules-troop-delta") == "-1"
     assert "troop_delta = -1" in live_file.read_text()
@@ -169,27 +177,27 @@ async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
     await user.open("/")
     user.find("Rules").click()
 
-    user.find(marker="rules-enemy-mult").clear().type("5").trigger("keydown.enter")
+    _commit(user, "rules-enemy-mult", "5")
     assert state.profile.live.enemy_mult == 5.0
-    user.find(marker="rules-enemy-mult").clear().type("0.3").trigger("keydown.enter")
+    _commit(user, "rules-enemy-mult", "0.3")
     assert state.profile.live.enemy_mult == 0.25
     assert _box_text(user, "rules-enemy-mult") == "0.25"
-    user.find(marker="rules-enemy-mult").clear().type("99").trigger("keydown.enter")
+    _commit(user, "rules-enemy-mult", "99")
     assert state.profile.live.enemy_mult == 10.0
 
-    user.find(marker="rules-troop-delta").clear().type("-3.4").trigger("keydown.enter")
+    _commit(user, "rules-troop-delta", "-3.4")
     assert state.profile.live.troop_delta == -3
     assert _box_text(user, "rules-troop-delta") == "-3"
-    user.find(marker="rules-troop-delta").clear().type("+50").trigger("keydown.enter")
+    _commit(user, "rules-troop-delta", "+50")
     assert state.profile.live.troop_delta == 10
     assert _box_text(user, "rules-troop-delta") == "+10"
 
     # rejected text: the saved value stays and the box reverts
-    user.find(marker="rules-troop-delta").clear().type("abc").trigger("keydown.enter")
+    _commit(user, "rules-troop-delta", "abc")
     await user.should_see("Not a number")
     assert state.profile.live.troop_delta == 10
     assert _box_text(user, "rules-troop-delta") == "+10"
-    user.find(marker="rules-enemy-mult").clear().trigger("keydown.enter")
+    user.find(marker="rules-enemy-mult").clear().trigger("commit")
     await user.should_see("Value cannot be empty")
     assert state.profile.live.enemy_mult == 10.0
     assert _box_text(user, "rules-enemy-mult") == "10"
@@ -197,15 +205,15 @@ async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
 
 async def test_topbar_and_rules_live_boxes_stay_in_sync(user, state):
     await user.open("/")
-    user.find(marker="enemy-mult-up").click()
+    _step(user, "enemy-mult", 1)
     assert state.profile.live.enemy_mult == 2.0
-    user.find(marker="troop-delta").clear().type("-2").trigger("keydown.enter")
+    _commit(user, "troop-delta", "-2")
     assert state.profile.live.troop_delta == -2
 
     user.find("Rules").click()
     assert _box_text(user, "rules-enemy-mult") == "2"
     assert _box_text(user, "rules-troop-delta") == "-2"
-    user.find(marker="rules-troop-delta-up").click()
+    _step(user, "rules-troop-delta", 1)
     assert _box_text(user, "troop-delta") == "-1"
 
 
@@ -269,14 +277,16 @@ async def test_reset_all_rerenders_open_card(user):
     await user.open("/")
     user.find("Archers").click()
     cell = user.find(marker="cell-towers.archers.price.1")
-    cell.clear().type("7").trigger("keydown.enter")
-    await user.should_see(marker="orig-towers.archers.price.1")
+    cell.clear().type("7").trigger("commit")
+    c = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
+    assert c.props.get("original") == "70"
 
     user.find(marker="reset-all").click()
     user.find(marker="btn-confirm-reset").click()
 
-    await user.should_not_see(marker="orig-towers.archers.price.1")
     c = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
+    assert c.props.get("original") is None
+    assert c.props.get("tone") is None
     assert c.value == "70"
 
 

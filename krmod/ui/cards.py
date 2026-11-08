@@ -1,13 +1,29 @@
 """Left column component: search box and unit cards grouped by category."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Callable
+from urllib.parse import quote
 
-from nicegui import ui
+from nicegui import app, ui
 
 from krmod.assets.portraits import portrait_for
 from krmod.model.grouping import Card
 from krmod.state import AppState
+
+_SERVED: dict[Path, str] = {}
+
+
+def portrait_src(path: Path) -> str:
+    """URL of a portrait file; each portrait folder gets one static route the first time."""
+    folder = path.parent.resolve()
+    url = _SERVED.get(folder)
+    if url is None:
+        url = f"/kr-portraits/{len(_SERVED)}"
+        app.add_static_files(url, folder)
+        _SERVED[folder] = url
+    return f"{url}/{quote(path.name)}"
+
 
 
 class CardsColumn:
@@ -29,6 +45,7 @@ class CardsColumn:
         self.strip: ui.column
         self.search_input: ui.input
         self.cards_area: ui.column
+        self._dots: dict[str, ui.label] = {}
 
         self._build()
 
@@ -73,10 +90,14 @@ class CardsColumn:
         self._render_cards()
 
     def refresh(self) -> None:
-        self._render_cards()
+        """After an edit: update the changed dots in place. Rebuilding the tiles would reload
+        every portrait and reset the list's scroll position."""
+        for card_id, dot in self._dots.items():
+            dot.set_visibility(self.state.card_has_changes(card_id))
 
     def _render_cards(self) -> None:
         self.cards_area.clear()
+        self._dots = {}
         if self.current_tab == "Rules":
             return
 
@@ -118,7 +139,10 @@ class CardsColumn:
             # Portrait or initials fallback
             portrait_path = portrait_for(card.id, self.state.paths.portraits_dir)
             if portrait_path and portrait_path.is_file():
-                ui.image(str(portrait_path)).classes("w-10 h-10 rounded object-cover shadow-xs")
+                # A plain lazy <img> from one static route: a tab can list hundreds of units, and a
+                # Quasar image per tile (each with its own file route) made tab switches slow.
+                img = ui.element("img").classes("w-10 h-10 rounded object-cover shadow-xs shrink-0")
+                img._props.update({"src": portrait_src(portrait_path), "loading": "lazy", "alt": ""})
             else:
                 with ui.element("div").classes(
                     "w-10 h-10 rounded bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-xs shrink-0"
@@ -128,6 +152,7 @@ class CardsColumn:
             # Card title
             ui.label(card.title).classes("text-sm font-semibold text-slate-800 flex-1 truncate")
 
-            # Dot indicator for changed values
-            if has_changes:
-                ui.label("●").classes("text-amber-500 font-bold text-sm")
+            # Dot indicator for changed values; refresh() only toggles it.
+            dot = ui.label("●").classes("text-amber-500 font-bold text-sm").mark(f"card-dot-{card.id}")
+            dot.set_visibility(has_changes)
+            self._dots[card_id] = dot

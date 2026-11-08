@@ -297,3 +297,26 @@ def test_speed_click_bumps_live_seq_other_edits_keep_it(state):
     assert seq() == first
     state.set_live(speed=1)
     assert seq() > first
+
+
+def test_row_pct_keeps_a_step_that_rounds_back_to_the_same_values(state):
+    # Small decimals round the same for many percents: 99% of 0.05 is still 0.05. The box must
+    # still show the stepped percent, or the arrows could never leave 100%.
+    row, card = next(
+        (r, cid)
+        for cid in (c.id for c in state.index.cards("Heroes"))
+        for r in state.rows(cid)
+        if state.row_scalable(r)
+        and all(0 < state.original(p) <= 0.1 for p in r.cells if p is not None)
+    )
+    cells = [p for p in row.cells if p is not None]
+    state.scale_row(row, 99)
+    assert state.row_pct(row) == 99
+    assert [state.current(p) for p in cells] == [scale(state.original(p), 99) for p in cells]
+    state.scale_row(row, 60)
+    assert state.row_pct(row) == 60
+    # An edit that breaks the remembered percent falls back to reading the values.
+    state.set_value(cells[0], 0.5)
+    assert state.row_pct(row) != 60
+    state.reset_all()
+    assert state.row_pct(row) == 100

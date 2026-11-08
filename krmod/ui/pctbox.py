@@ -10,9 +10,6 @@ from krmod.model.stepping import parse_pct, step_pct
 from krmod.ui.formatting import format_pct
 from krmod.ui.spinbox import SpinBox
 
-_CHANGED = "text-amber-700 font-bold"
-_MIXED = "text-slate-400 italic"
-
 
 class PctBox:
     """Percent box built on SpinBox.
@@ -68,9 +65,9 @@ class PctBox:
         self._style(pct)
 
     def _style(self, pct: float | None) -> None:
-        inp = self.box.inp
-        inp.classes(remove=f"{_CHANGED} {_MIXED}")
         if pct is None:
-            inp.classes(add=_MIXED)
+            self.box.set_tone("mixed")
         elif pct != PCT_MID:
-            inp.classes(add=_CHANGED)
+            self.box.set_tone("pct-changed")
+        else:
+            self.box.set_tone(None)

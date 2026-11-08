@@ -25,6 +25,8 @@ Owner requests collected after PR #1, built on branch feat/ui-number-boxes. The 
 - Old profiles: enemy_mult snaps to the new list; the old troop_mult setting is dropped (Troops starts at 0).
 - The live file and the loader carry troop_delta instead of troop_mult.
 - A changed cell shows the game value (struck through, clickable to reset) and a reset icon in a small line under the box, instead of beside it. Measured at 960 px wide on Archers: the old layout made a level column about 285 px wide, so about one level was visible; under the box the column is about 112 px, so two to three levels fit. Easy to switch back if the owner prefers the value beside the box.
+- A % box keeps the percent it was last stepped or typed to while its values still match it (99% of 0.05 is still 0.05, so reading the percent back from the values would snap every step back to 100%). Any other edit (a cell, a reset, another box, a profile switch) ends that. On small values a few steps can pass before a value changes.
+- Speed: each number box is one lightweight element (krmod/ui/spinbox.js, bundled by scripts/build.bat) instead of a Quasar input with button, icon and tooltip children; unit cards use plain lazy images from one static route; an edit only toggles the changed dots in the card list instead of rebuilding it. Measured in headless Chromium before and after: opening a 10-level hero 2.1 s to 1.1 s, Enemies tab 10.1 s to 1.4 s; Python time to build a hero card 2.2 s to about 0.3 s.
 
 ## Approaches considered
 

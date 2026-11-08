@@ -5,25 +5,22 @@ from typing import Any, Callable
 
 from nicegui import ui
 
-_INPUT_PROPS = 'dense outlined hide-bottom-space input-class="text-right"'
-_ARROW_PROPS = "flat dense round size=xs padding=0"
-_ARROW_CLASSES = "min-h-0 h-3 w-4 leading-none"
+Tone = str | None  # None, "changed", "mixed" or "pct-changed"
 
 
-def _shift(e: Any) -> bool:
-    args = getattr(e, "args", None)
-    return bool(args.get("shiftKey")) if isinstance(args, dict) else False
+class SpinBox(ui.input, component="spinbox.js"):
+    """A number box that never decides values itself.
 
-
-class SpinBox:
-    """A text box that never decides values itself.
+    It is a single lightweight element (spinbox.js: a plain input, two buttons, an optional
+    warning sign and an optional game value under it), because big tables hold hundreds of them.
 
     on_commit(text) runs for typed text on Enter or blur, only when the text changed.
     on_step(direction, shift) runs for the up/down buttons and the arrow keys; direction is 1 or -1.
     Uncommitted typed text is committed before a step. The owner validates, saves and then
     calls set_text() with the value to show (also to revert rejected text).
+    on_reset() runs when the struck game value shown by set_original() is clicked.
 
-    Markers: <marker> on the input, <marker>-up and <marker>-down on the buttons.
+    Events (for tests): "commit", "step" with {"direction": 1 | -1, "shiftKey": bool}, "reset".
     """
 
     def __init__(
@@ -35,33 +32,19 @@ class SpinBox:
         marker: str,
         classes: str = "w-24",
         dark: bool = False,
+        on_reset: Callable[[], None] | None = None,
     ) -> None:
+        super().__init__(value=text)
         self._shown = text
         self._on_commit = on_commit
         self._on_step = on_step
-
-        props = _INPUT_PROPS + (" dark" if dark else "")
-        self.inp = ui.input(value=text).props(props).classes(f"{classes} font-mono text-sm").mark(marker)
-        with self.inp.add_slot("append"):
-            with ui.column().classes("gap-0 -mr-2 items-center justify-center"):
-                self.up = (
-                    ui.button(icon="arrow_drop_up")
-                    .props(_ARROW_PROPS)
-                    .classes(_ARROW_CLASSES)
-                    .mark(f"{marker}-up")
-                )
-                self.down = (
-                    ui.button(icon="arrow_drop_down")
-                    .props(_ARROW_PROPS)
-                    .classes(_ARROW_CLASSES)
-                    .mark(f"{marker}-down")
-                )
-        self.up.on("click", lambda e: self._step(1, _shift(e)), args=["shiftKey"])
-        self.down.on("click", lambda e: self._step(-1, _shift(e)), args=["shiftKey"])
-        self.inp.on("keydown.up.prevent", lambda e: self._step(1, _shift(e)), args=["shiftKey"])
-        self.inp.on("keydown.down.prevent", lambda e: self._step(-1, _shift(e)), args=["shiftKey"])
-        self.inp.on("keydown.enter", lambda _: self.commit())
-        self.inp.on("blur", lambda _: self.commit())
+        self._props["box-class"] = classes
+        self._props["dark"] = dark
+        self.mark(marker)
+        self.on("commit", lambda _: self.commit())
+        self.on("step", self._handle_step)
+        if on_reset is not None:
+            self.on("reset", lambda _: on_reset())
 
     @property
     def text(self) -> str:
@@ -69,13 +52,29 @@ class SpinBox:
 
     def set_text(self, text: str) -> None:
         self._shown = text
-        self.inp.value = text
+        self.value = text
+
+    def set_tone(self, tone: Tone) -> None:
+        self._set_prop("tone", tone)
+
+    def set_original(self, text: str | None) -> None:
+        """Show the struck game value under the box (None hides it)."""
+        self._set_prop("original", text)
+
+    def set_warning(self, text: str | None) -> None:
+        self._set_prop("warning", text)
 
     def commit(self) -> None:
-        typed = str(self.inp.value if self.inp.value is not None else "")
+        typed = str(self.value if self.value is not None else "")
         if typed != self._shown:
             self._on_commit(typed)
 
-    def _step(self, direction: int, shift: bool) -> None:
+    def _set_prop(self, name: str, value: Any) -> None:
+        if self._props.get(name) != value:
+            self._props[name] = value
+
+    def _handle_step(self, e: Any) -> None:
+        args = e.args if isinstance(e.args, dict) else {}
+        direction = 1 if int(args.get("direction", 1)) > 0 else -1
         self.commit()
-        self._on_step(direction, shift)
+        self._on_step(direction, bool(args.get("shiftKey")))

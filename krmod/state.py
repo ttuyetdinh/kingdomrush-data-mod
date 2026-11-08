@@ -36,6 +36,8 @@ class AppState:
         self.index = index
         self.store = store
         self._rows_cache: dict[str, list[StatRow]] = {}
+        # (profile name, scaled cells, percent) of the last Row % or Quick scale edit
+        self._last_pct: tuple[str, tuple[KeyPath, ...], float] | None = None
 
     def switch_game(self, paths: GamePaths, tree: BalanceTree, index: GroupIndex) -> None:
         """Point the state at another game folder; the profile store and its changes stay."""
@@ -43,6 +45,7 @@ class AppState:
         self.tree = tree
         self.index = index
         self._rows_cache.clear()
+        self._last_pct = None
 
     @property
     def profile(self) -> Profile:
@@ -107,6 +110,7 @@ class AppState:
 
     def set_value(self, path: KeyPath, value: float) -> str | None:
         self._validate_editable(path, value)
+        self._last_pct = None
         self._store(path, value)
         self.store.save(self.profile)
         if float(value) == self.original(path):
@@ -122,11 +126,13 @@ class AppState:
             return False, str(exc)
 
     def reset(self, path: KeyPath) -> None:
+        self._last_pct = None
         if path in self.profile.changes:
             del self.profile.changes[path]
             self.store.save(self.profile)
 
     def reset_all(self) -> None:
+        self._last_pct = None
         if self.profile.changes:
             self.profile.changes.clear()
             self.store.save(self.profile)
@@ -146,14 +152,10 @@ class AppState:
         return bool(self._eligible_row_cells(row))
 
     def scale_row(self, row: StatRow, pct: float) -> None:
-        self._apply_pct(self._eligible_row_cells(row), round(pct, 1))
+        self._scale_paths(self._eligible_row_cells(row), pct)
 
     def row_pct(self, row: StatRow) -> float | None:
-        cells = self._eligible_row_cells(row)
-        if not cells:
-            return None
-        pairs = [(self.original(p), self.current(p)) for p in cells]
-        return common_pct(pairs)
+        return self._pct_of(self._eligible_row_cells(row))
 
     def _eligible_card_paths(
         self, card_id: str, category: str | None = None
@@ -175,14 +177,35 @@ class AppState:
         return [c for c in CATEGORY_NAMES if c in seen]
 
     def scale_card(self, card_id: str, category: str, pct: float) -> None:
-        self._apply_pct(self._eligible_card_paths(card_id, category), round(pct, 1))
+        self._scale_paths(self._eligible_card_paths(card_id, category), pct)
 
     def card_pct(self, card_id: str, category: str) -> float | None:
-        paths = self._eligible_card_paths(card_id, category)
+        return self._pct_of(self._eligible_card_paths(card_id, category))
+
+    def _scale_paths(self, paths: Sequence[KeyPath], pct: float) -> None:
+        pct = round(pct, 1)
+        self._apply_pct(paths, pct)
+        self._last_pct = (self.profile.name, tuple(paths), pct)
+
+    def _pct_of(self, paths: Sequence[KeyPath]) -> float | None:
+        """Percent shown in a Row % or Quick scale box (None = mixed).
+
+        Small values round the same for many percents (99% of 0.05 is still 0.05), so reading
+        the percent back from the values would snap a 99% step back to 100% and the arrows could
+        never move. The box last scaled therefore keeps its percent while its values still match
+        it; any other edit (a cell, a reset, another box, a profile switch) ends that.
+        """
         if not paths:
             return None
-        pairs = [(self.original(p), self.current(p)) for p in paths]
-        return common_pct(pairs)
+        if self._last_pct is not None:
+            name, key, pct = self._last_pct
+            if (
+                name == self.profile.name
+                and key == tuple(paths)
+                and all(scale(self.original(p), pct) == self.current(p) for p in paths)
+            ):
+                return pct
+        return common_pct([(self.original(p), self.current(p)) for p in paths])
 
     def set_live(
         self,

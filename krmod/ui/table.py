@@ -14,7 +14,6 @@ from krmod.ui.pctbox import PctBox
 from krmod.ui.formatting import format_val
 from krmod.ui.spinbox import SpinBox
 
-_CHANGED_CLASSES = "bg-amber-100 border-amber-500 font-bold text-amber-900"
 
 # The Stat column is pinned to the left edge and the Row % column to the right edge of the
 # horizontal scroller. Pinned cells need an opaque background so levels slide underneath.
@@ -46,54 +45,15 @@ class CellController:
         self.path = path
         self.on_change = on_change
 
-        curr = state.current(path)
-        orig = state.original(path)
-        is_chg = state.is_changed(path)
-
-        p_str = path_str(path)
-        # The game value and the reset button sit in a small line under the box, so a changed
-        # cell is no wider than an unchanged one and more levels fit at half screen width.
-        with ui.column().classes("items-end gap-0"):
-            with ui.row().classes("items-center justify-end gap-1 no-wrap"):
-                self.warn_icon = (
-                    ui.icon("warning", color="warning", size="xs")
-                    .classes("cursor-pointer")
-                    .mark(f"warn-{p_str}")
-                )
-                w = warn(path, curr)
-                with self.warn_icon:
-                    self.warn_tooltip = ui.tooltip(w or "")
-                self.warn_icon.set_visibility(bool(w))
-
-                self.box = SpinBox(
-                    format_val(curr),
-                    on_commit=self.commit,
-                    on_step=self.step,
-                    marker=f"cell-{p_str}",
-                    classes="w-24",
-                )
-                if is_chg:
-                    self.box.inp.classes(add=_CHANGED_CLASSES)
-
-            with ui.row().classes("items-center justify-end gap-0.5 no-wrap leading-none"):
-                # The struck game value resets too, so the click target is bigger than the icon.
-                self.orig_label = (
-                    ui.label(format_val(orig))
-                    .classes("text-[11px] text-slate-400 line-through font-mono cursor-pointer hover:text-slate-700")
-                    .tooltip("Back to the game value")
-                    .mark(f"orig-{p_str}")
-                )
-                self.orig_label.on("click", lambda _: self.reset())
-                self.orig_label.set_visibility(is_chg)
-
-                self.reset_btn = (
-                    ui.button(icon="undo", on_click=self.reset)
-                    .props("flat dense round size=8px padding=0")
-                    .classes("text-slate-400 hover:text-slate-700 min-h-0")
-                    .tooltip("Back to the game value")
-                    .mark(f"reset-{p_str}")
-                )
-                self.reset_btn.set_visibility(is_chg)
+        self.box = SpinBox(
+            format_val(state.current(path)),
+            on_commit=self.commit,
+            on_step=self.step,
+            on_reset=self.reset,
+            marker=f"cell-{path_str(path)}",
+            classes="w-24",
+        )
+        self._decorate(state.current(path))
 
     def commit(self, text: str) -> None:
         success, err_or_warn = self.state.parse_and_set(self.path, text.strip())
@@ -123,25 +83,21 @@ class CellController:
         self.on_change()
 
     def refresh(self) -> None:
+        """Re-read the cell; SpinBox only sends props that actually changed."""
         curr = self.state.current(self.path)
-        orig = self.state.original(self.path)
-        is_chg = self.state.is_changed(self.path)
         self.box.set_text(format_val(curr))
+        self._decorate(curr)
 
-        if is_chg:
-            self.box.inp.classes(add=_CHANGED_CLASSES)
-            self.orig_label.text = format_val(orig)
-            self.orig_label.set_visibility(True)
-            self.reset_btn.set_visibility(True)
+    def _decorate(self, curr: float) -> None:
+        # The struck game value under a changed cell resets it; keeping it under the box (not
+        # beside it) keeps changed and unchanged cells the same width.
+        if self.state.is_changed(self.path):
+            self.box.set_tone("changed")
+            self.box.set_original(format_val(self.state.original(self.path)))
         else:
-            self.box.inp.classes(remove=_CHANGED_CLASSES)
-            self.orig_label.set_visibility(False)
-            self.reset_btn.set_visibility(False)
-
-        w = warn(self.path, curr)
-        self.warn_icon.set_visibility(bool(w))
-        if w:
-            self.warn_tooltip.set_text(w)
+            self.box.set_tone(None)
+            self.box.set_original(None)
+        self.box.set_warning(warn(self.path, curr))
 
 
 def friendly_group_label(group: str) -> str:
@@ -258,13 +214,13 @@ def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Ca
                             # Stat column (pinned left):
                             with ui.element("td").classes(f"{cell} px-3 {_PIN_L}"):
                                 name_color = "text-slate-600" if row.read_only else "text-slate-800"
-                                with ui.row().classes("items-center gap-1.5 flex-nowrap"):
-                                    stat_lbl = ui.label(row.label).classes(
-                                        f"font-medium {name_color} whitespace-nowrap"
-                                    )
-                                    stat_lbl.tooltip(row.id)
-                                    if alias_note:
-                                        ui.label(alias_note).classes("text-xs text-amber-600 italic ml-1")
+                                # A native title instead of a Quasar tooltip: one element less per row.
+                                stat_lbl = ui.label(row.label).classes(
+                                    f"font-medium {name_color} whitespace-nowrap"
+                                )
+                                stat_lbl._props["title"] = row.id
+                                if alias_note:
+                                    ui.label(alias_note).classes("text-xs text-amber-600 italic")
 
                             # Level columns:
                             for col_idx in range(max_levels):
@@ -283,14 +239,13 @@ def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Ca
                             # Row % column (pinned right):
                             with ui.element("td").classes(f"{cell} px-3 text-right {_PIN_R}"):
                                 if not row.read_only and state.row_scalable(row):
-                                    with ui.row().classes("justify-end no-wrap"):
-                                        pct_boxes.append(
-                                            PctBox(
-                                                lambda r=row: state.row_pct(r),
-                                                lambda pct, r=row: state.scale_row(r, pct),
-                                                f"row-pct-{row_slug}",
-                                                on_mutation,
-                                            )
+                                    pct_boxes.append(
+                                        PctBox(
+                                            lambda r=row: state.row_pct(r),
+                                            lambda pct, r=row: state.scale_row(r, pct),
+                                            f"row-pct-{row_slug}",
+                                            on_mutation,
                                         )
+                                    )
 
         ui.run_javascript(_OVERFLOW_JS % scroller.id)
