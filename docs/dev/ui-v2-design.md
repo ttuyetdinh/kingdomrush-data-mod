@@ -24,6 +24,7 @@ Owner requests collected after PR #1, built on branch feat/ui-number-boxes. The 
 - The top bar switches to two rows below 1280 px wide. The fold state of the card list is saved in settings.json in the app folder. Minimum window size 800 x 500.
 - Old profiles: enemy_mult snaps to the new list; the old troop_mult setting is dropped (Troops starts at 0).
 - The live file and the loader carry troop_delta instead of troop_mult.
+- A changed cell shows the game value (struck through, clickable to reset) and a reset icon in a small line under the box, instead of beside it. Measured at 960 px wide on Archers: the old layout made a level column about 285 px wide, so about one level was visible; under the box the column is about 112 px, so two to three levels fit. Easy to switch back if the owner prefers the value beside the box.
 
 ## Approaches considered
 

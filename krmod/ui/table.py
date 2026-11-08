@@ -76,11 +76,14 @@ class CellController:
                     self.box.inp.classes(add=_CHANGED_CLASSES)
 
             with ui.row().classes("items-center justify-end gap-0.5 no-wrap leading-none"):
+                # The struck game value resets too, so the click target is bigger than the icon.
                 self.orig_label = (
                     ui.label(format_val(orig))
-                    .classes("text-[11px] text-slate-400 line-through font-mono")
+                    .classes("text-[11px] text-slate-400 line-through font-mono cursor-pointer hover:text-slate-700")
+                    .tooltip("Back to the game value")
                     .mark(f"orig-{p_str}")
                 )
+                self.orig_label.on("click", lambda _: self.reset())
                 self.orig_label.set_visibility(is_chg)
 
                 self.reset_btn = (
