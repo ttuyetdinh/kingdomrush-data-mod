@@ -2,6 +2,8 @@
 
 KrGenesis Mod is a desktop editor and live tuning tool for Kingdom Rush Genesis. It lets you customize unit balance values, tower progression rules, and real-time game multipliers, delivering your custom configurations via a safe Lua mod loader.
 
+> **Disclaimer:** This is an unofficial fan project made for personal fun and single-player play only. It is not affiliated with, endorsed by, or supported by Ironhide Game Studio, the makers of Kingdom Rush. Kingdom Rush and all game content belong to their owners. This repository contains no game files, art, or game code; you need your own copy of the game. Use it at your own risk: back up your save before trying it, and do not use it to cheat in online or competitive features or to get paid content without paying for it.
+
 ## Key Features
 
 - Safe and non-invasive: The application never modifies Kingdom Rush Genesis.exe or any original game file. Launching the game normally always runs the unmodified vanilla game.
@@ -84,3 +86,7 @@ mods\launch_modded.bat
 ```
 
 This runs Kingdom Rush Genesis with the modded balance override using the most recently applied settings. A standard game launch without this batch script remains completely vanilla.
+
+## License
+
+The code in this repository is released under the MIT License (see LICENSE). The license covers only this project's own code; it grants no rights to Kingdom Rush or any of its content.
