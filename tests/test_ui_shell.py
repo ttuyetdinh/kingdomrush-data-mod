@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from nicegui.testing.user_simulation import user_simulation
 
@@ -168,3 +170,67 @@ async def test_two_pages_render_independently(create_user):
 async def test_page_built_line_printed(user, capsys):
     await user.open("/")
     assert " page built " in capsys.readouterr().out
+
+
+@pytest.fixture
+def make_shell_user(tmp_path):
+    """A page on the real game data with its own app folder (repo), profiles and mods folders."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (tmp_path / "profiles").mkdir()
+    (tmp_path / "mods").mkdir()
+
+    def make():
+        main_file = tmp_path / "fold_main.py"
+        main_file.write_text(
+            "import dataclasses\n"
+            "from pathlib import Path\n"
+            "from nicegui import core, ui\n"
+            "from krmod.gamedata.reader import read_balance\n"
+            "from krmod.model.grouping import GroupIndex\n"
+            "from krmod.paths import GamePaths\n"
+            "from krmod.profiles import ProfileStore\n"
+            "from krmod.state import AppState\n"
+            "from krmod.ui.main import build_page\n"
+            "core.reset()\n"
+            "paths = GamePaths.locate()\n"
+            f"paths = dataclasses.replace(paths, profiles_dir=Path({str(tmp_path / 'profiles')!r}),"
+            f" mods_dir=Path({str(tmp_path / 'mods')!r}))\n"
+            "tree = read_balance(paths)\n"
+            "state = AppState(paths, tree, GroupIndex.build(tree), ProfileStore(paths.profiles_dir))\n"
+            f"build_page(state, None, repo_dir=Path({str(repo)!r}))\n"
+            "ui.run()\n",
+            encoding="utf-8",
+        )
+        return user_simulation(main_file=main_file)
+
+    make.repo = repo
+    return make
+
+
+async def test_card_list_fold_is_saved_and_keeps_other_settings(make_shell_user):
+    repo = make_shell_user.repo
+    (repo / "settings.json").write_text('{"game_dir": "D:\\\\games\\\\kr"}', encoding="utf-8")
+    async with make_shell_user() as u:
+        await u.open("/")
+        await u.should_see("Archers")
+        u.find(marker="cards-fold").click()
+        await u.should_see(marker="cards-unfold")
+        await u.should_not_see("Archers")
+        assert json.loads((repo / "settings.json").read_text(encoding="utf-8")) == {
+            "game_dir": "D:\\games\\kr",
+            "cards_folded": True,
+        }
+        u.find(marker="cards-unfold").click()
+        await u.should_see("Archers")
+        assert json.loads((repo / "settings.json").read_text(encoding="utf-8"))["cards_folded"] is False
+
+
+async def test_card_list_starts_folded_when_saved(make_shell_user):
+    (make_shell_user.repo / "settings.json").write_text('{"cards_folded": true}', encoding="utf-8")
+    async with make_shell_user() as u:
+        await u.open("/")
+        await u.should_see(marker="cards-unfold")
+        await u.should_not_see("Archers")
+        u.find(marker="cards-unfold").click()
+        await u.should_see("Archers")

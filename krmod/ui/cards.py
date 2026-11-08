@@ -15,13 +15,18 @@ class CardsColumn:
         self,
         state: AppState,
         on_card_click: Callable[[str], None],
+        folded: bool = False,
+        on_fold_change: Callable[[bool], None] | None = None,
     ) -> None:
         self.state = state
         self.on_card_click = on_card_click
+        self.on_fold_change = on_fold_change
         self.current_tab: str = "Towers"
         self.search_query: str = ""
+        self.folded = folded
 
         self.container: ui.column
+        self.strip: ui.column
         self.search_input: ui.input
         self.cards_area: ui.column
 
@@ -30,15 +35,34 @@ class CardsColumn:
     def _build(self) -> None:
         self.container = ui.column().classes("w-80 h-full p-0 gap-0 overflow-hidden min-h-0 flex-nowrap")
         with self.container:
-            with ui.row().classes("w-full p-3 pb-2 shrink-0"):
+            with ui.row().classes("w-full p-3 pb-2 shrink-0 items-center gap-1 flex-nowrap"):
                 self.search_input = (
                     ui.input(placeholder="Search…", on_change=lambda e: self.set_search(e.value or ""))
                     .props("outlined dense clearable")
-                    .classes("w-full")
+                    .classes("flex-1 min-w-0")
                     .mark("card-search")
                 )
+                ui.button("«", on_click=lambda: self.set_folded(True)).props(
+                    "flat dense no-caps color=secondary"
+                ).classes("shrink-0").mark("cards-fold").tooltip("Fold the card list")
             self.cards_area = ui.column().classes("w-full flex-1 overflow-y-auto px-3 pb-3 gap-3 min-h-0")
             self._render_cards()
+        self.strip = ui.column().classes("w-[26px] h-full p-0 pt-3 items-center shrink-0")
+        with self.strip:
+            ui.button("»", on_click=lambda: self.set_folded(False)).props(
+                "flat dense no-caps color=secondary"
+            ).classes("w-full").mark("cards-unfold").tooltip("Unfold the card list")
+        self._apply_folded()
+
+    def set_folded(self, folded: bool) -> None:
+        self.folded = folded
+        self._apply_folded()
+        if self.on_fold_change is not None:
+            self.on_fold_change(folded)
+
+    def _apply_folded(self) -> None:
+        self.container.set_visibility(not self.folded)
+        self.strip.set_visibility(self.folded)
 
     def set_tab(self, tab: str) -> None:
         self.current_tab = tab

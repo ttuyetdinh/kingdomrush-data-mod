@@ -50,6 +50,8 @@ def main() -> None:
     webview_storage.mkdir(parents=True, exist_ok=True)
     nicegui_app.native.start_args["storage_path"] = str(webview_storage)
     nicegui_app.native.start_args["private_mode"] = False
+    # The layout holds down to 800 x 500 (two-row top bar, scrolling editor): no smaller window.
+    nicegui_app.native.window_args["min_size"] = (800, 500)
     # Window connection events in app.log help diagnose a window that stops responding.
     nicegui_app.on_connect(lambda client: print(f"{time.strftime('%H:%M:%S')} window connected {client.id}"))
     nicegui_app.on_disconnect(lambda client: print(f"{time.strftime('%H:%M:%S')} window disconnected {client.id}"))
