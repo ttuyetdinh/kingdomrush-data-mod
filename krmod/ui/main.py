@@ -179,7 +179,7 @@ def _render_shell(state: AppState) -> None:
             _cards_col = CardsColumn(state, on_card_click=show_card)
 
         # Right editor column
-        right_col = ui.column().classes("flex-1 h-full p-6 overflow-y-auto bg-white min-h-0 [&>*]:shrink-0")
+        right_col = ui.column().classes("flex-1 min-w-0 h-full p-6 overflow-y-auto bg-white min-h-0 [&>*]:shrink-0")
         REGIONS["right"] = right_col
         with right_col:
             with ui.column().classes("w-full h-full items-center justify-center text-center p-8"):

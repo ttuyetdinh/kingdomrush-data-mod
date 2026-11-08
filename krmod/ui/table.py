@@ -154,7 +154,7 @@ def render_card(state: AppState, card_id: str) -> None:
     with right:
         card_sliders = CardSliders(state, card_id, on_change=on_mutation)
 
-        with ui.column().classes("w-full overflow-x-auto shrink-0"):
+        with ui.column().classes("w-max min-w-full shrink-0"):
             with ui.element("table").classes("w-full border-collapse text-left text-sm"):
                 # Header:
                 with ui.element("thead"):
@@ -236,18 +236,18 @@ def render_card(state: AppState, card_id: str) -> None:
                                         return toggle
 
                                     with ui.row().classes(
-                                        "items-center gap-1.5 cursor-pointer select-none"
+                                        "items-center gap-1.5 flex-nowrap cursor-pointer select-none"
                                     ).mark(f"row-expand-{row_slug}").on("click", make_toggle()):
                                         ch_lbl = ui.label("▸").classes("text-slate-400 font-mono text-xs w-3")
                                         chevron_ref[0] = ch_lbl
-                                        stat_lbl = ui.label(row.label).classes("font-medium text-slate-800")
+                                        stat_lbl = ui.label(row.label).classes("font-medium text-slate-800 whitespace-nowrap")
                                         stat_lbl.tooltip(row.id)
                                         if alias_note:
                                             ui.label(alias_note).classes("text-xs text-amber-600 italic ml-1")
                                 else:
-                                    with ui.row().classes("items-center gap-1.5"):
+                                    with ui.row().classes("items-center gap-1.5 flex-nowrap"):
                                         ui.label(" ").classes("w-3")
-                                        stat_lbl = ui.label(row.label).classes("font-medium text-slate-600")
+                                        stat_lbl = ui.label(row.label).classes("font-medium text-slate-600 whitespace-nowrap")
                                         stat_lbl.tooltip(row.id)
                                         if alias_note:
                                             ui.label(alias_note).classes("text-xs text-amber-600 italic ml-1")
