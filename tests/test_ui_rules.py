@@ -280,11 +280,33 @@ async def test_polling_timeout_hides_status_line(user, monkeypatch):
     await user.open("/")
     monkeypatch.setattr(launcher, "find_game", lambda paths: None)
     monkeypatch.setattr(sys.modules["krmod.ui.applybar"], "POLL_INTERVAL_S", 0.02)
-    monkeypatch.setattr(sys.modules["krmod.ui.applybar"], "POLL_TIMEOUT_S", 0.05)
 
     user.find(marker="apply-run").click()
+    # The handler finishes off the event loop; the status line shows once it is done.
+    await user.should_see(marker="status-line")
     status_el = list(user.find(marker="status-line").elements)[0]
     assert status_el.visible is True
 
+    monkeypatch.setattr(sys.modules["krmod.ui.applybar"], "POLL_TIMEOUT_S", 0.05)
     await asyncio.sleep(0.2)
     assert status_el.visible is False
+
+
+async def test_apply_scans_processes_off_the_event_loop(user, monkeypatch):
+    import threading
+
+    loop_thread = threading.get_ident()
+    seen = []
+
+    def fake_find_game(paths):
+        seen.append(threading.get_ident())
+        return None
+
+    monkeypatch.setattr(launcher, "find_game", fake_find_game)
+    await user.open("/")
+    user.find(marker="apply-mod").click()
+    await user.should_see("Mod written:")
+    user.find(marker="apply-run").click()
+    await user.should_see("Waiting for the game to load the mod")
+    assert seen
+    assert loop_thread not in seen

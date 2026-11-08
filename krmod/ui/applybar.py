@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from typing import Callable
 
-from nicegui import ui
+from nicegui import run, ui
 
 from krmod.modgen import launcher
 from krmod.modgen.launcher import RunOutcome
@@ -130,23 +130,28 @@ def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[
             poll_timer.activate()
         else:
             poll_timer = ui.timer(POLL_INTERVAL_S, check_log)
-    def on_apply_mod() -> None:
+
+    async def on_apply_mod() -> None:
         nonlocal watcher, last_outcome
         summary_panel.visible = False
         status_label.text = ""
         status_label.visible = False
 
-        running = launcher.find_game(state.paths)
-        is_running_modded = running is not None and running.modded
-        if is_running_modded:
-            last_outcome = RunOutcome.UPDATED_RUNNING
-        else:
-            last_outcome = None
-
         log_file = state.paths.mods_dir / "kr_mod_log.txt"
         watcher = LogWatcher(log_file)
         watcher.mark()
-        res = state.apply()
+
+        def scan_and_write():
+            return launcher.find_game(state.paths), state.apply()
+
+        # The process scan and the file writes take a moment: keep them off the event loop.
+        done = await run.io_bound(scan_and_write)
+        if done is None:  # the app is shutting down
+            return
+        running, res = done
+        is_running_modded = running is not None and running.modded
+        last_outcome = RunOutcome.UPDATED_RUNNING if is_running_modded else None
+
 
         if is_running_modded:
             msg = "Mod written: changes apply at the next level start"
@@ -158,7 +163,7 @@ def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[
         on_refresh()
         start_polling()
 
-    def on_apply_and_run() -> None:
+    async def on_apply_and_run() -> None:
         nonlocal watcher, last_outcome
         summary_panel.visible = False
         status_label.text = ""
@@ -166,7 +171,11 @@ def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[
         log_file = state.paths.mods_dir / "kr_mod_log.txt"
         watcher = LogWatcher(log_file)
         watcher.mark()
-        outcome, res = state.apply_and_run()
+        # Process scan, file writes and launch: keep them off the event loop.
+        done = await run.io_bound(state.apply_and_run)
+        if done is None:  # the app is shutting down
+            return
+        outcome, res = done
         last_outcome = outcome
         on_refresh()
 
