@@ -51,41 +51,46 @@ class CellController:
         is_chg = state.is_changed(path)
 
         p_str = path_str(path)
-        with ui.row().classes("items-center justify-end gap-1 no-wrap"):
-            self.warn_icon = (
-                ui.icon("warning", color="warning", size="xs")
-                .classes("cursor-pointer")
-                .mark(f"warn-{p_str}")
-            )
-            w = warn(path, curr)
-            with self.warn_icon:
-                self.warn_tooltip = ui.tooltip(w or "")
-            self.warn_icon.set_visibility(bool(w))
+        # The game value and the reset button sit in a small line under the box, so a changed
+        # cell is no wider than an unchanged one and more levels fit at half screen width.
+        with ui.column().classes("items-end gap-0"):
+            with ui.row().classes("items-center justify-end gap-1 no-wrap"):
+                self.warn_icon = (
+                    ui.icon("warning", color="warning", size="xs")
+                    .classes("cursor-pointer")
+                    .mark(f"warn-{p_str}")
+                )
+                w = warn(path, curr)
+                with self.warn_icon:
+                    self.warn_tooltip = ui.tooltip(w or "")
+                self.warn_icon.set_visibility(bool(w))
 
-            self.orig_label = (
-                ui.label(format_val(orig))
-                .classes("text-xs text-slate-400 line-through")
-                .mark(f"orig-{p_str}")
-            )
-            self.orig_label.set_visibility(is_chg)
+                self.box = SpinBox(
+                    format_val(curr),
+                    on_commit=self.commit,
+                    on_step=self.step,
+                    marker=f"cell-{p_str}",
+                    classes="w-24",
+                )
+                if is_chg:
+                    self.box.inp.classes(add=_CHANGED_CLASSES)
 
-            self.reset_btn = (
-                ui.button(icon="undo", on_click=self.reset)
-                .props("flat dense round size=xs")
-                .classes("text-slate-400 hover:text-slate-700")
-                .mark(f"reset-{p_str}")
-            )
-            self.reset_btn.set_visibility(is_chg)
+            with ui.row().classes("items-center justify-end gap-0.5 no-wrap leading-none"):
+                self.orig_label = (
+                    ui.label(format_val(orig))
+                    .classes("text-[11px] text-slate-400 line-through font-mono")
+                    .mark(f"orig-{p_str}")
+                )
+                self.orig_label.set_visibility(is_chg)
 
-            self.box = SpinBox(
-                format_val(curr),
-                on_commit=self.commit,
-                on_step=self.step,
-                marker=f"cell-{p_str}",
-                classes="w-28",
-            )
-            if is_chg:
-                self.box.inp.classes(add=_CHANGED_CLASSES)
+                self.reset_btn = (
+                    ui.button(icon="undo", on_click=self.reset)
+                    .props("flat dense round size=8px padding=0")
+                    .classes("text-slate-400 hover:text-slate-700 min-h-0")
+                    .tooltip("Back to the game value")
+                    .mark(f"reset-{p_str}")
+                )
+                self.reset_btn.set_visibility(is_chg)
 
     def commit(self, text: str) -> None:
         success, err_or_warn = self.state.parse_and_set(self.path, text.strip())
