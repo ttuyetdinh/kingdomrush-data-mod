@@ -70,6 +70,8 @@ This builds one file, dist\KrGenesisMod.exe, with Python, the window library and
 
 The exe keeps everything beside itself: profiles\, settings.json and cache\ (portraits, app.log, window storage). Each start it unpacks itself into a runtime\ folder in the folder it is started from (double-click or a shortcut: the exe's own folder), which takes a few seconds, and removes that copy when the window closes; a copy left in the exe's folder by a crash is removed at the next start. If the exe is not inside the game folder, choose the game folder with the folder icon.
 
+The only other thing the machine needs is the Microsoft Edge WebView2 Runtime, which draws the window. It comes with Windows 11 and most Windows 10 installs; without it the window does not open (install it from Microsoft's WebView2 download page). Keep the exe in its own folder rather than directly in the game folder: the app writes its profiles, cache and runtime folders beside the exe, and the game folder itself should only ever get the mods folder.
+
 ## Launching the Modded Game
 
 You can apply changes and launch the game directly from the app interface using Apply mod and run game.
