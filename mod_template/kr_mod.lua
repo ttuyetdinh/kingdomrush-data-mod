@@ -97,6 +97,12 @@ local function main(base, found, stats)
         log("unlock " .. kind .. (hooked and ": all" or ": waiting for the map screen"))
       end
     end
+    local spells_hooked = progress.install_spell_points(K, rawget(_G, "PowerRoomView"), function()
+      return K.data.rules.extra_spell_points
+    end)
+    if not spells_hooked and (tonumber(data.rules.extra_spell_points) or 0) > 0 then
+      log("spell points: waiting for the map screen")
+    end
   end)
 
   local ctx = { base = base, log = log }

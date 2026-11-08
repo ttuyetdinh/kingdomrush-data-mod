@@ -9,10 +9,19 @@ MAP = (
     "CALLS = 0; screen_map = {}; "
     "function screen_map:is_content_stage_unlocked(name, ud) CALLS = CALLS + 1; return false end"
 )
+# The game's spell room: a spell at level 3 with 1 point spent has 1 point left.
+SPELL_ROOM = (
+    "PowerRoomView = {}; "
+    "function PowerRoomView:get_unit_stats(name) return { remaining_points = 3 - 1 - 1, level = 3 } end"
+)
 
 
 def _unlocked(harness, name):
     return harness.lua(f'return tostring(screen_map:is_content_stage_unlocked("{name}", {{}}))')
+
+
+def _spell_points(harness):
+    return harness.lua('return PowerRoomView:get_unit_stats("power_royal_edict").remaining_points')
 
 
 def test_extra_points_are_added_to_every_level_and_never_stack(harness):
@@ -21,7 +30,27 @@ def test_extra_points_are_added_to_every_level_and_never_stack(harness):
     for _ in range(3):
         harness.run_level()
     assert harness.lua(TABLES) == "10,14,18|5,7,9"
-    assert "points: hero skills +10, skill tree +5" in harness.log()
+    assert "points: hero skills +10, spell skills +0, skill tree +5" in harness.log()
+
+
+def test_extra_spell_points_are_added_once_and_follow_the_rule(harness):
+    harness.lua(BAL + "; " + SPELL_ROOM)
+    harness.write_data([], rules={"extra_spell_points": 7})
+    for _ in range(3):
+        harness.run_level()
+    assert _spell_points(harness) == "8"
+    assert "spell skills +7" in harness.log()
+    harness.write_data([], rules={"extra_spell_points": 0})
+    harness.run_level()
+    assert _spell_points(harness) == "1"
+
+
+def test_extra_spell_points_before_the_spell_room_loads(harness):
+    harness.lua(BAL + "; PowerRoomView = nil")
+    harness.write_data([], rules={"extra_spell_points": 7})
+    harness.run_level()
+    log = harness.log()
+    assert "spell points: waiting for the map screen" in log and "error" not in log
 
 
 def test_zero_extra_points_restore_the_game_numbers(harness):

@@ -35,6 +35,7 @@ RULE_DEFAULTS: dict[str, bool | int] = {
     "unlock_towers": False,
     "unlock_spells": False,
     "extra_hero_points": 0,
+    "extra_spell_points": 0,
     "extra_upgrade_points": 0,
 }
 
@@ -121,6 +122,7 @@ class Profile:
     unlock_towers: bool = False
     unlock_spells: bool = False
     extra_hero_points: int = 0
+    extra_spell_points: int = 0
     extra_upgrade_points: int = 0
     live: LiveSettings = field(default_factory=LiveSettings)
     speed_keys: tuple[str, str, str] = ("f5", "f6", "f7")

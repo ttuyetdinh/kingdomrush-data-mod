@@ -103,11 +103,13 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
                 ).classes("text-xs text-slate-400 mt-1")
             with ui.column().classes("gap-1 mt-4"):
                 PointsBox(state, "extra_hero_points", "Extra hero skill points", "extra-hero-points")
+                PointsBox(state, "extra_spell_points", "Extra spell skill points", "extra-spell-points")
                 PointsBox(state, "extra_upgrade_points", "Extra skill tree points", "extra-upgrade-points")
             ui.label(
-                f"Added on top of the game's points (0 to {EXTRA_POINTS_MAX}): hero levels and finished "
-                "stages still give their normal points. If you lower a number after spending, "
-                "use the game's reset button to get the points back."
+                f"Added on top of the game's points (0 to {EXTRA_POINTS_MAX}) for every hero, every "
+                "spell and the skill tree: hero levels, spell levels and finished stages still give "
+                "their normal points. If you lower a number after spending, use the game's reset "
+                "button to get the points back."
             ).classes("text-xs text-slate-400 mt-1")
             ui.label(
                 "Unlocks and extra points show the next time the map screen opens, after Apply mod."

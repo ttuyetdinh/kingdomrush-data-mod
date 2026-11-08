@@ -46,9 +46,29 @@ function M.apply_points(K, GS, rules, log)
   if not add_extra(K, GS, POINT_TABLES.upgrade, upgrade) then
     log("error points: skill tree point table not found")
   end
-  if hero > 0 or upgrade > 0 then
-    log("points: hero skills +" .. hero .. ", skill tree +" .. upgrade)
+  local spell = whole(rules.extra_spell_points)
+  if hero > 0 or spell > 0 or upgrade > 0 then
+    log("points: hero skills +" .. hero .. ", spell skills +" .. spell .. ", skill tree +" .. upgrade)
   end
+end
+
+-- The spell room has no point table: PowerRoomView:get_unit_stats(name) returns the spell's
+-- remaining_points (spell level - 1 - spent). The wrapper adds get_extra() to it, so the room,
+-- its point label and its skill tree all see the extra. Wraps each function once; returns
+-- false when the spell room is not loaded.
+function M.install_spell_points(K, view, get_extra)
+  if type(view) ~= "table" or type(view.get_unit_stats) ~= "function" then return false end
+  if view.get_unit_stats == K.spell_points_wrapper then return true end
+  local original = view.get_unit_stats
+  K.spell_points_wrapper = function(...)
+    local out = original(...)
+    if type(out) == "table" and type(out.remaining_points) == "number" then
+      out.remaining_points = out.remaining_points + whole(get_extra())
+    end
+    return out
+  end
+  view.get_unit_stats = K.spell_points_wrapper
+  return true
 end
 
 -- Content names of the star check, by rule: "hero_<name>", "tower_<name>", "power_<name>".

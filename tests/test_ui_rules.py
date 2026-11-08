@@ -61,6 +61,8 @@ async def test_extra_points_boxes_step_clamp_and_save(user, state):
     _step(user, "extra-hero-points", -1, shift=True)
     _step(user, "extra-hero-points", -1, shift=True)
     assert _box_text(user, "extra-hero-points") == "0"
+    _step(user, "extra-spell-points", 1, shift=True)
+    assert ProfileStore(state.paths.profiles_dir).active().extra_spell_points == 10
     _commit(user, "extra-upgrade-points", "12.5")
     assert state.profile.extra_upgrade_points == 13
     _commit(user, "extra-upgrade-points", "5000")
