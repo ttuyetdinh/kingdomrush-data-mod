@@ -91,7 +91,7 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
             ).mark("unlock-heroes-switch").classes("mt-3")
             ui.label(
                 "Every hero is available in the hero room without collecting stars. "
-                "Your save is not changed: turn it off and the star requirements come back."
+                "No unlock is written to your save: turn it off and the star requirements come back."
             ).classes("text-xs text-slate-400 mt-1")
             with ui.column().classes("gap-1 mt-4"):
                 PointsBox(state, "extra_hero_points", "Extra hero skill points", "extra-hero-points")
