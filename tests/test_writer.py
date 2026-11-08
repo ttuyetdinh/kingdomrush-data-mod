@@ -76,14 +76,15 @@ def test_data_file_loads_in_lua(tmp_game, tree, lua):
 
 
 def test_live_file(tmp_game):
-    write_live(tmp_game, LiveSettings(2, 1.5, 3.0))
+    write_live(tmp_game, LiveSettings(2, 2.0, -3))
     assert (
         (tmp_game.mods_dir / "kr_mod_live.lua").read_bytes()
-        == b"return { speed = 2, enemy_mult = 1.5, troop_mult = 3.0 }\n"
+        == b"return { speed = 2, enemy_mult = 2.0, troop_delta = -3 }\n"
     )
+    write_live(tmp_game, LiveSettings(1, 0.25, 0))
     assert (
         (tmp_game.mods_dir / "kr_mod_live.lua").read_text().strip()
-        == "return { speed = 2, enemy_mult = 1.5, troop_mult = 3.0 }"
+        == "return { speed = 1, enemy_mult = 0.25, troop_delta = 0 }"
     )
 
 
@@ -169,13 +170,13 @@ def test_apply_mod_copies_dynamically_added_template_modules(tmp_game, tree, tmp
 
 def test_live_seq_only_bumps_on_request(tmp_game):
     live_file = tmp_game.mods_dir / "kr_mod_live.lua"
-    write_live(tmp_game, LiveSettings(1, 1.0, 1.0))
+    write_live(tmp_game, LiveSettings(1, 1.0, 1))
     assert "seq" not in live_file.read_text()
 
-    write_live(tmp_game, LiveSettings(1, 1.0, 1.0), bump_seq=True)
+    write_live(tmp_game, LiveSettings(1, 1.0, 1), bump_seq=True)
     first = int(live_file.read_text().split("seq = ")[1].split(" ")[0])
-    write_live(tmp_game, LiveSettings(1, 2.0, 1.0))
+    write_live(tmp_game, LiveSettings(1, 2.0, 1))
     assert f"seq = {first} " in live_file.read_text()
-    write_live(tmp_game, LiveSettings(1, 2.0, 1.0), bump_seq=True)
+    write_live(tmp_game, LiveSettings(1, 2.0, 1), bump_seq=True)
     second = int(live_file.read_text().split("seq = ")[1].split(" ")[0])
     assert second > first

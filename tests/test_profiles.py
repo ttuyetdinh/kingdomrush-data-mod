@@ -41,7 +41,7 @@ def test_json_format(tmp_path):
         "name": "Easy mode",
         "changes": [{"path": ["towers", "archers", "price", 1], "value": 7}],
         "rules": {"unlock_tower_levels": True},
-        "live": {"speed": 1, "enemy_mult": 1.0, "troop_mult": 1.0},
+        "live": {"speed": 1, "enemy_mult": 1.0, "troop_delta": 0},
         "speed_keys": ["f5", "f6", "f7"],
     }
 
@@ -63,7 +63,7 @@ def test_duplicate_copies_content_independently(tmp_path):
     s = ProfileStore(tmp_path)
     src = s.create("A")
     src.changes[("x", 1)] = 2.5
-    src.live = LiveSettings(2, 1.5, 0.5)
+    src.live = LiveSettings(2, 3.0, 3)
     s.save(src)
     dup = s.duplicate("A", "B")
     assert dup.changes == src.changes and dup.live == src.live
@@ -201,18 +201,65 @@ def test_speed_keys_validation():
 
 
 def test_live_validation():
-    LiveSettings(3, 0.5, 3.0).validate()
+    LiveSettings(3, 0.25, -10).validate()
+    LiveSettings(1, 10.0, 10).validate()
+    LiveSettings(2, 7, 0).validate()
     LiveSettings().validate()
     for bad in (
         LiveSettings(4),
-        LiveSettings(enemy_mult=0.6),
-        LiveSettings(troop_mult=3.25),
-        LiveSettings(enemy_mult=0.25),
+        LiveSettings(enemy_mult=0.5),
+        LiveSettings(enemy_mult=1.5),
+        LiveSettings(enemy_mult=11),
+        LiveSettings(enemy_mult=0),
         LiveSettings(speed=True),
         LiveSettings(enemy_mult=float("nan")),
+        LiveSettings(enemy_mult=True),
+        LiveSettings(troop_delta=11),
+        LiveSettings(troop_delta=-11),
+        LiveSettings(troop_delta=1.5),
+        LiveSettings(troop_delta=2.0),
+        LiveSettings(troop_delta=True),
+        LiveSettings(troop_delta="2"),
     ):
         with pytest.raises(ProfileError):
             bad.validate()
+
+
+@pytest.mark.parametrize(
+    "stored, enemy, troop",
+    [
+        ({"enemy_mult": 1.5, "troop_delta": 2}, 2.0, 2),  # a tie snaps up
+        ({"enemy_mult": 0.75, "troop_delta": -3}, 1.0, -3),  # an old slider value
+        ({"enemy_mult": 0.3, "troop_delta": 99}, 0.25, 10),
+        ({"enemy_mult": 40, "troop_delta": -99}, 10.0, -10),
+        ({"enemy_mult": 3.0, "troop_delta": 1.5}, 3.0, 2),
+        ({"enemy_mult": 1.0, "troop_mult": 2.5}, 1.0, 0),  # legacy troop_mult is dropped
+    ],
+)
+def test_load_snaps_and_clamps_live(tmp_path, stored, enemy, troop):
+    _write_profile_json(tmp_path / "x.json", live={"speed": 2, **stored})
+    live = ProfileStore(tmp_path).active().live
+    assert live == LiveSettings(2, enemy, troop)
+    assert isinstance(live.troop_delta, int)
+
+
+def test_legacy_troop_mult_not_saved_again(tmp_path):
+    _write_profile_json(
+        tmp_path / "x.json", live={"speed": 1, "enemy_mult": 2.0, "troop_mult": 2.0}
+    )
+    s = ProfileStore(tmp_path)
+    s.save(s.active())
+    data = json.loads((tmp_path / "x.json").read_text(encoding="utf-8"))
+    assert data["live"] == {"speed": 1, "enemy_mult": 2.0, "troop_delta": 0}
+
+
+@pytest.mark.parametrize(
+    "live", [{"enemy_mult": "2"}, {"troop_delta": "2"}, {"enemy_mult": None}, {"troop_delta": True}, {"enemy_mult": False}]
+)
+def test_wrong_typed_live_values_skipped(tmp_path, live):
+    _write_profile_json(tmp_path / "bad.json", live=live)
+    s = ProfileStore(tmp_path)
+    assert "bad.json" in s.load_warnings[0] and s.names() == ["Default"]
 
 
 def test_stale(tree, tmp_path):
@@ -281,7 +328,7 @@ def test_huge_int_mult_skipped(tmp_path):
     s = ProfileStore(tmp_path)
     assert "huge.json" in s.load_warnings[0] and s.names() == ["Default"]
     with pytest.raises(ProfileError):
-        LiveSettings(troop_mult=10**400).validate()
+        LiveSettings(troop_delta=10**400).validate()
 
 
 def test_speed_keys_must_be_love_names():

@@ -53,20 +53,6 @@ async def test_speed_button_markers_and_highlight(user, state):
     assert "speed = 3" in live_file.read_text()
 
 
-async def test_enemy_mult_slider_topbar(user, state):
-    await user.open("/")
-    user.find(marker="enemy-mult").trigger("change", 1.5)
-    assert state.profile.live.enemy_mult == 1.5
-    await user.should_see("Enemies 1.5x")
-
-
-async def test_troop_mult_slider_topbar(user, state):
-    await user.open("/")
-    user.find(marker="troop-mult").trigger("change", 2.25)
-    assert state.profile.live.troop_mult == 2.25
-    await user.should_see("Troops 2.25x")
-
-
 async def test_speed_keys_valid_save(user, state):
     await user.open("/")
     user.find("Rules").click()
@@ -147,19 +133,73 @@ async def test_speed_keys_enter_key_and_errors(user, state):
     assert state.profile.speed_keys[0] == "f5"
 
 
-async def test_mirrored_multipliers_on_rules_tab(user, state):
+def _box_text(user, marker):
+    return list(user.find(marker=marker).elements)[0].value
+
+
+async def test_live_boxes_on_rules_tab_step(user, state):
+    await user.open("/")
+    user.find("Rules").click()
+    live_file = state.paths.mods_dir / "kr_mod_live.lua"
+    assert _box_text(user, "rules-enemy-mult") == "1"
+    assert _box_text(user, "rules-troop-delta") == "0"
+
+    user.find(marker="rules-enemy-mult-down").click()
+    assert state.profile.live.enemy_mult == 0.25
+    assert _box_text(user, "rules-enemy-mult") == "0.25"
+    user.find(marker="rules-enemy-mult-up").click()
+    assert state.profile.live.enemy_mult == 1.0
+    user.find(marker="rules-enemy-mult-up").click()
+    assert state.profile.live.enemy_mult == 2.0
+
+    user.find(marker="rules-troop-delta-up").click()
+    user.find(marker="rules-troop-delta-up").click()
+    assert state.profile.live.troop_delta == 2
+    assert _box_text(user, "rules-troop-delta") == "+2"
+    user.find(marker="rules-troop-delta-down").click()
+    user.find(marker="rules-troop-delta-down").click()
+    user.find(marker="rules-troop-delta-down").click()
+    assert state.profile.live.troop_delta == -1
+    assert _box_text(user, "rules-troop-delta") == "-1"
+    assert "troop_delta = -1" in live_file.read_text()
+    assert "enemy_mult = 2.0" in live_file.read_text()
+
+
+async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
     await user.open("/")
     user.find("Rules").click()
 
-    # Mirrored enemy slider
-    user.find(marker="rules-enemy-mult").trigger("change", 2.5)
-    assert state.profile.live.enemy_mult == 2.5
-    await user.should_see("Enemies 2.5x")
+    user.find(marker="rules-enemy-mult").clear().type("5").trigger("keydown.enter")
+    assert state.profile.live.enemy_mult == 5.0
+    user.find(marker="rules-enemy-mult").clear().type("0.3").trigger("keydown.enter")
+    assert state.profile.live.enemy_mult == 0.25
+    assert _box_text(user, "rules-enemy-mult") == "0.25"
+    user.find(marker="rules-enemy-mult").clear().type("99").trigger("keydown.enter")
+    assert state.profile.live.enemy_mult == 10.0
 
-    # Mirrored troop slider
-    user.find(marker="rules-troop-mult").trigger("change", 0.75)
-    assert state.profile.live.troop_mult == 0.75
-    await user.should_see("Troops 0.75x")
+    user.find(marker="rules-troop-delta").clear().type("-3.4").trigger("keydown.enter")
+    assert state.profile.live.troop_delta == -3
+    assert _box_text(user, "rules-troop-delta") == "-3"
+    user.find(marker="rules-troop-delta").clear().type("+50").trigger("keydown.enter")
+    assert state.profile.live.troop_delta == 10
+    assert _box_text(user, "rules-troop-delta") == "+10"
+
+    # rejected text: the saved value stays and the box reverts
+    user.find(marker="rules-troop-delta").clear().type("abc").trigger("keydown.enter")
+    await user.should_see("Not a number")
+    assert state.profile.live.troop_delta == 10
+    assert _box_text(user, "rules-troop-delta") == "+10"
+    user.find(marker="rules-enemy-mult").clear().trigger("keydown.enter")
+    await user.should_see("Value cannot be empty")
+    assert state.profile.live.enemy_mult == 10.0
+    assert _box_text(user, "rules-enemy-mult") == "10"
+
+
+async def test_rules_tab_explains_live_controls(user):
+    await user.open("/")
+    user.find("Rules").click()
+    await user.should_see("Bosses always spawn once")
+    await user.should_see("A large minus can leave a barracks empty")
 
 
 async def test_log_summary_panel_display(user, state, monkeypatch):

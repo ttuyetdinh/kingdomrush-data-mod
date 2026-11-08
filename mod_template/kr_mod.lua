@@ -23,7 +23,7 @@ local function main(base, found, stats)
     KRMOD = {
       installed = {},
       originals = {},
-      live = { speed = 1, enemy_mult = 1, troop_mult = 1 },
+      live = { speed = 1, enemy_mult = 1, troop_delta = 0 },
       speed_keys = { DEFAULT_SPEED_KEYS[1], DEFAULT_SPEED_KEYS[2], DEFAULT_SPEED_KEYS[3] },
       pollers = {},
       enemy_acc = {},
