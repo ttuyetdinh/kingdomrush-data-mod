@@ -110,6 +110,7 @@ def test_data_table_speed_keys_normalized(tree):
         "unlock_heroes": True,
         "unlock_towers": False,
         "unlock_spells": False,
+        "allow_both_paths": False,
         "extra_hero_points": 0,
         "extra_spell_points": 0,
         "extra_upgrade_points": 12,

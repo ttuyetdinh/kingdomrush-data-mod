@@ -130,3 +130,40 @@ def test_unlock_heroes_before_the_map_screen_loads(harness):
     harness.run_level()
     log = harness.log()
     assert "unlock heroes: waiting for the map screen" in log and "error" not in log
+
+
+# The game's skill tree: "a" was bought, so the other side of the split ("b", 3 points) and
+# the far node "c" (9 points) are blocked; "d" is a normal node.
+SKILL_TREE = (
+    "KGraphDictionary = { graph = { tower_archers = { b = { cost = 3 }, c = { cost = 9 }, d = { cost = 1 } } } }; "
+    "function KGraphDictionary:evaluate(source, points) "
+    "  return { enable_buttons = { d = true }, available_nodes = { 'd' }, unavailable_buttons = {}, "
+    "           block_buttons = { b = 'a', c = 'a' }, active_links = {} } end"
+)
+TREE_STATE = (
+    "local r = KGraphDictionary:evaluate('tower_archers', 5); local function keys(t) "
+    "local out = {} for k in pairs(t) do out[#out + 1] = k end table.sort(out) return table.concat(out, ',') end; "
+    "table.sort(r.available_nodes); "
+    "return keys(r.enable_buttons) .. '|' .. table.concat(r.available_nodes, ',') .. '|' .. "
+    "keys(r.unavailable_buttons) .. '|' .. keys(r.block_buttons)"
+)
+
+
+def test_both_paths_turn_blocked_sides_into_buyable_nodes(harness):
+    harness.lua(BAL + "; " + SKILL_TREE)
+    harness.write_data([], rules={"allow_both_paths": True})
+    for _ in range(3):
+        harness.run_level()
+    # b fits in 5 points, c does not; nothing is left to swap.
+    assert harness.lua(TREE_STATE) == "b,d|b,d|c|"
+    assert "unlock both skill paths: all trees" in harness.log()
+
+
+def test_both_paths_off_keeps_the_game_split(harness):
+    harness.lua(BAL + "; " + SKILL_TREE)
+    harness.write_data([], rules={"allow_both_paths": True})
+    harness.run_level()
+    harness.write_data([], rules={"allow_both_paths": False})
+    harness.run_level()
+    assert harness.lua(TREE_STATE) == "d|d||b,c"
+    assert "both skill paths" not in harness.log()

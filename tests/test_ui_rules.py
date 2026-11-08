@@ -46,10 +46,12 @@ async def test_unlock_switches_saved(user, state):
     user.find("Unlock all heroes").click()
     user.find("Unlock all spells").click()
     user.find("Unlock all towers").click()
+    user.find("Allow both paths in skill trees").click()
     saved = ProfileStore(state.paths.profiles_dir).active()
-    assert (saved.unlock_tower_levels, saved.unlock_heroes, saved.unlock_spells, saved.unlock_towers) == (
-        True, True, True, True,
-    )
+    assert (
+        saved.unlock_tower_levels, saved.unlock_heroes, saved.unlock_spells, saved.unlock_towers,
+        saved.allow_both_paths,
+    ) == (True, True, True, True, True)
 
 
 async def test_extra_points_boxes_step_clamp_and_save(user, state):

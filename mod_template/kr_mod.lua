@@ -103,6 +103,12 @@ local function main(base, found, stats)
     if not spells_hooked and (tonumber(data.rules.extra_spell_points) or 0) > 0 then
       log("spell points: waiting for the map screen")
     end
+    local paths_hooked = progress.install_both_paths(K, rawget(_G, "KGraphDictionary"), function()
+      return K.data.rules.allow_both_paths == true
+    end)
+    if data.rules.allow_both_paths == true then
+      log("unlock both skill paths" .. (paths_hooked and ": all trees" or ": waiting for the map screen"))
+    end
   end)
 
   local ctx = { base = base, log = log }

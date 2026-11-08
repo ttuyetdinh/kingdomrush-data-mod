@@ -34,6 +34,7 @@ RULE_DEFAULTS: dict[str, bool | int] = {
     "unlock_heroes": False,
     "unlock_towers": False,
     "unlock_spells": False,
+    "allow_both_paths": False,
     "extra_hero_points": 0,
     "extra_spell_points": 0,
     "extra_upgrade_points": 0,
@@ -121,6 +122,7 @@ class Profile:
     unlock_heroes: bool = False
     unlock_towers: bool = False
     unlock_spells: bool = False
+    allow_both_paths: bool = False
     extra_hero_points: int = 0
     extra_spell_points: int = 0
     extra_upgrade_points: int = 0
