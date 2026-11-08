@@ -310,3 +310,32 @@ async def test_apply_scans_processes_off_the_event_loop(user, monkeypatch):
     await user.should_see("Waiting for the game to load the mod")
     assert seen
     assert loop_thread not in seen
+
+
+async def test_double_click_apply_and_run_launches_once(user, monkeypatch):
+    import asyncio
+    import time
+
+    launches = []
+
+    def slow_find_game(paths):
+        time.sleep(0.3)  # the real process scan takes a moment
+        return None
+
+    monkeypatch.setattr(launcher, "find_game", slow_find_game)
+    monkeypatch.setattr(launcher, "launch", lambda paths: launches.append(1) or 99999)
+    await user.open("/")
+    run_button = list(user.find(marker="apply-run").elements)[0]
+    apply_button = list(user.find(marker="apply-mod").elements)[0]
+    user.find(marker="apply-run").click()
+    await asyncio.sleep(0.05)
+    assert not run_button.enabled and not apply_button.enabled
+    # A real window can deliver a second click before it shows the disabled state.
+    run_button.enable()
+    apply_button.enable()
+    user.find(marker="apply-run").click()
+    user.find(marker="apply-mod").click()
+    await user.should_see("Waiting for the game to load the mod", retries=20)
+    await asyncio.sleep(0.5)
+    assert launches == [1]
+    assert run_button.enabled and apply_button.enabled

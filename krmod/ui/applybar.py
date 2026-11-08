@@ -1,6 +1,8 @@
 """Apply bar component: Reset all, Apply mod, Apply mod and run game, and log summary watcher."""
 from __future__ import annotations
 
+import asyncio
+import copy
 import time
 from typing import Callable
 
@@ -12,6 +14,9 @@ from krmod.modgen.logwatch import LogSummary, LogWatcher
 from krmod.state import AppState
 POLL_INTERVAL_S: float = 1.0
 POLL_TIMEOUT_S: float = 120.0
+
+# One game and one mods folder: only one Apply runs at a time, across all pages.
+_apply_lock = asyncio.Lock()
 
 
 def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[], None]) -> None:
@@ -131,8 +136,23 @@ def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[
         else:
             poll_timer = ui.timer(POLL_INTERVAL_S, check_log)
 
+    def set_apply_busy(busy: bool) -> None:
+        for button in (apply_button, run_button):
+            button.set_enabled(not busy)
+
+    async def guarded(work: Callable[[], object]) -> object:
+        """Run work off the event loop, one Apply at a time; None if the app is shutting down."""
+        async with _apply_lock:
+            set_apply_busy(True)
+            try:
+                return await run.io_bound(work)
+            finally:
+                set_apply_busy(False)
+
     async def on_apply_mod() -> None:
         nonlocal watcher, last_outcome
+        if _apply_lock.locked():  # a second click while an Apply runs
+            return
         summary_panel.visible = False
         status_label.text = ""
         status_label.visible = False
@@ -140,18 +160,19 @@ def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[
         log_file = state.paths.mods_dir / "kr_mod_log.txt"
         watcher = LogWatcher(log_file)
         watcher.mark()
+        # Snapshot on the event loop so edits made during the write can't change it mid-write.
+        profile = copy.deepcopy(state.profile)
 
         def scan_and_write():
-            return launcher.find_game(state.paths), state.apply()
+            return launcher.find_game(state.paths), state.apply(profile)
 
         # The process scan and the file writes take a moment: keep them off the event loop.
-        done = await run.io_bound(scan_and_write)
+        done = await guarded(scan_and_write)
         if done is None:  # the app is shutting down
             return
         running, res = done
         is_running_modded = running is not None and running.modded
         last_outcome = RunOutcome.UPDATED_RUNNING if is_running_modded else None
-
 
         if is_running_modded:
             msg = "Mod written: changes apply at the next level start"
@@ -165,14 +186,17 @@ def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[
 
     async def on_apply_and_run() -> None:
         nonlocal watcher, last_outcome
+        if _apply_lock.locked():  # a second click while an Apply runs
+            return
         summary_panel.visible = False
         status_label.text = ""
         status_label.visible = False
         log_file = state.paths.mods_dir / "kr_mod_log.txt"
         watcher = LogWatcher(log_file)
         watcher.mark()
+        profile = copy.deepcopy(state.profile)
         # Process scan, file writes and launch: keep them off the event loop.
-        done = await run.io_bound(state.apply_and_run)
+        done = await guarded(lambda: state.apply_and_run(profile))
         if done is None:  # the app is shutting down
             return
         outcome, res = done
@@ -211,9 +235,9 @@ def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[
 
     # Right controls: Apply mod and Apply mod and run game
     with ui.row().classes("items-center gap-3"):
-        ui.button("Apply mod", on_click=on_apply_mod).props(
+        apply_button = ui.button("Apply mod", on_click=on_apply_mod).props(
             "outline dense color=primary"
         ).mark("apply-mod")
-        ui.button("Apply mod and run game", on_click=on_apply_and_run).props(
+        run_button = ui.button("Apply mod and run game", on_click=on_apply_and_run).props(
             "unelevated dense color=primary"
         ).mark("apply-run")

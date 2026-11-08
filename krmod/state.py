@@ -283,8 +283,10 @@ class AppState:
     def delete_profile(self, name: str) -> None:
         self.store.delete(name)
 
-    def apply(self) -> ApplyResult:
-        return apply_mod(self.paths, self.profile, self.tree)
+    def apply(self, profile: Profile | None = None) -> ApplyResult:
+        """Write the mod. Pass a snapshot of the profile when calling from a worker thread."""
+        return apply_mod(self.paths, profile or self.profile, self.tree)
 
-    def apply_and_run(self) -> tuple[RunOutcome, ApplyResult]:
-        return apply_and_run(self.paths, self.profile, self.tree)
+    def apply_and_run(self, profile: Profile | None = None) -> tuple[RunOutcome, ApplyResult]:
+        """Write the mod and start the game if needed. Same snapshot rule as apply()."""
+        return apply_and_run(self.paths, profile or self.profile, self.tree)
