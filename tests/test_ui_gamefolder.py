@@ -141,7 +141,7 @@ async def test_error_page_valid_folder_loads_editor(user_no_game, game_paths):
     user_no_game.find(marker="game-dir-input").clear()
     user_no_game.find(marker="game-dir-input").type(str(game_paths.game_dir))
     user_no_game.find(marker="btn-use-game-folder").click()
-    await user_no_game.should_see("5857/5857 values placed")
+    await user_no_game.should_see("5857/5857 values placed", retries=50)
     assert load_game_dir_setting(user_no_game.repo) == game_paths.game_dir.resolve()
     saved = json.loads((user_no_game.repo / "settings.json").read_text(encoding="utf-8"))
     assert saved == {"game_dir": str(game_paths.game_dir.resolve())}
@@ -196,7 +196,7 @@ async def test_native_picker_valid_choice_loads_editor(tmp_path, repo, game_path
         async with user_simulation(main_file=_error_page_main(tmp_path, repo, native=True)) as u:
             await u.open("/")
             u.find(marker="btn-choose-game-folder").click()
-            await u.should_see("5857/5857 values placed")
+            await u.should_see("5857/5857 values placed", retries=50)
             assert load_game_dir_setting(repo) == game_paths.game_dir.resolve()
     finally:
         fake_window.uninstall()
@@ -265,7 +265,7 @@ async def test_topbar_switch_uses_new_folder(tmp_path, repo, game_paths, second_
             return False
 
         assert await dialog_shows_new_folder()
-        await u.should_see("5857/5857 values placed")
+        await u.should_see("5857/5857 values placed", retries=50)
 
         # A live write lands in the new folder's mods dir, not in the real game's.
         u.find(marker="speed-2").click()

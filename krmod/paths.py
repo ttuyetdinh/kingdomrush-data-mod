@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 EXE_NAME = "Kingdom Rush Genesis.exe"
 LUA_DLL_NAME = "lua51.dll"
@@ -25,23 +26,43 @@ def default_repo_dir() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def load_game_dir_setting(repo_dir: Path) -> Path | None:
-    """The game folder saved in <repo_dir>/settings.json; a missing or corrupt file means none."""
+def load_settings(repo_dir: Path) -> dict[str, Any]:
+    """All keys of <repo_dir>/settings.json; a missing or corrupt file counts as empty."""
     try:
         data = json.loads((repo_dir / SETTINGS_NAME).read_text(encoding="utf-8"))
-        game_dir = data["game_dir"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_settings(repo_dir: Path, **values: Any) -> None:
+    """Set the given keys in <repo_dir>/settings.json and keep every other key."""
+    from krmod.modgen.writer import atomic_write  # imported late: the writer imports this module
+
+    data = load_settings(repo_dir)
+    data.update(values)
+    atomic_write(repo_dir / SETTINGS_NAME, json.dumps(data, indent=2) + "\n")
+
+
+def load_game_dir_setting(repo_dir: Path) -> Path | None:
+    """The game folder saved in <repo_dir>/settings.json; a missing or corrupt file means none."""
+    game_dir = load_settings(repo_dir).get("game_dir")
     if not isinstance(game_dir, str) or not game_dir.strip():
         return None
     return Path(game_dir)
 
 
 def save_game_dir_setting(repo_dir: Path, game_dir: Path) -> None:
-    from krmod.modgen.writer import atomic_write  # imported late: the writer imports this module
+    save_settings(repo_dir, game_dir=str(Path(game_dir).resolve()))
 
-    text = json.dumps({"game_dir": str(Path(game_dir).resolve())}, indent=2)
-    atomic_write(repo_dir / SETTINGS_NAME, text + "\n")
+
+def load_cards_folded(repo_dir: Path) -> bool:
+    """Whether the card list was left folded; anything but a saved true means unfolded."""
+    return load_settings(repo_dir).get("cards_folded") is True
+
+
+def save_cards_folded(repo_dir: Path, folded: bool) -> None:
+    save_settings(repo_dir, cards_folded=folded)
 
 
 def validate_game_dir(game_dir: Path) -> None:

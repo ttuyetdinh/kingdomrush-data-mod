@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from krmod.model.stepping import ENEMY_VALUES, TROOP_MAX, TROOP_MIN, clamp_troop, snap_enemy
 from krmod.model.values import BalanceTree, KeyPath
 
 FORBIDDEN_KEYS = frozenset(
@@ -43,18 +44,19 @@ def _is_finite_number(x: object) -> bool:
 class LiveSettings:
     speed: int = 1
     enemy_mult: float = 1.0
-    troop_mult: float = 1.0
+    troop_delta: int = 0
 
     def validate(self) -> None:
         if isinstance(self.speed, bool) or not isinstance(self.speed, int) or self.speed not in (1, 2, 3):
             raise ProfileError(f"speed must be 1, 2 or 3, got {self.speed!r}")
-        for label, mult in (("enemy_mult", self.enemy_mult), ("troop_mult", self.troop_mult)):
-            if not _is_finite_number(mult):
-                raise ProfileError(f"{label} must be a number, got {mult!r}")
-            if not 0.5 <= mult <= 3:
-                raise ProfileError(f"{label} must be between 0.5 and 3, got {mult!r}")
-            if (mult * 4) != int(mult * 4):
-                raise ProfileError(f"{label} must be a multiple of 0.25, got {mult!r}")
+        if not _is_finite_number(self.enemy_mult):
+            raise ProfileError(f"enemy_mult must be a number, got {self.enemy_mult!r}")
+        if self.enemy_mult not in ENEMY_VALUES:
+            raise ProfileError(f"enemy_mult must be 0.25 or a whole number from 1 to 10, got {self.enemy_mult!r}")
+        if isinstance(self.troop_delta, bool) or not isinstance(self.troop_delta, int):
+            raise ProfileError(f"troop_delta must be a whole number, got {self.troop_delta!r}")
+        if not TROOP_MIN <= self.troop_delta <= TROOP_MAX:
+            raise ProfileError(f"troop_delta must be between {TROOP_MIN} and {TROOP_MAX}, got {self.troop_delta!r}")
 
 
 # LOVE 11 KeyConstant names (love.keyboard.isDown / love.keypressed).
@@ -144,10 +146,19 @@ def _to_json(profile: Profile) -> dict:
         "live": {
             "speed": profile.live.speed,
             "enemy_mult": profile.live.enemy_mult,
-            "troop_mult": profile.live.troop_mult,
+            "troop_delta": profile.live.troop_delta,
         },
         "speed_keys": list(profile.speed_keys),
     }
+
+
+def _snap_enemy_setting(value: object) -> object:
+    """Finite numbers snap to the allowed list; anything else is left for validate() to reject."""
+    return snap_enemy(value) if _is_finite_number(value) else value
+
+
+def _clamp_troop_setting(value: object) -> object:
+    return clamp_troop(value) if _is_finite_number(value) else value
 
 
 def _from_json(data: object) -> Profile:
@@ -184,7 +195,9 @@ def _from_json(data: object) -> Profile:
         changes=changes,
         unlock_tower_levels=unlock,
         live=LiveSettings(
-            live.get("speed", 1), live.get("enemy_mult", 1.0), live.get("troop_mult", 1.0)
+            live.get("speed", 1),
+            _snap_enemy_setting(live.get("enemy_mult", 1.0)),
+            _clamp_troop_setting(live.get("troop_delta", 0)),
         ),
         speed_keys=validate_speed_keys(keys),
     )

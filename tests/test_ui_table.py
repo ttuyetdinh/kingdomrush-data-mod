@@ -1,22 +1,37 @@
-"""User simulation tests for level table and sliders (Task 12)."""
+"""User simulation tests for the level table: cell boxes, Row % boxes and quick scale boxes."""
 from nicegui import ui
 import pytest
+
+def _box(user, marker):
+    return list(user.find(marker=marker).elements)[0]
+
+
+def _step(user, marker, direction, shift=False):
+    user.find(marker=marker).trigger("step", {"direction": direction, "shiftKey": shift})
+
+
+def _commit(user, marker, text):
+    user.find(marker=marker).clear().type(text).trigger("commit")
+
 
 async def test_type_value_marks_changed(user):
     await user.open("/")
     user.find("Archers").click()
-    user.find(marker="cell-towers.archers.price.1").clear().type("7").trigger("keydown.enter")
-    await user.should_see(marker="orig-towers.archers.price.1")  # original 70 shown
+    _commit(user, "cell-towers.archers.price.1", "7")
+    box = _box(user, "cell-towers.archers.price.1")
+    assert box.props.get("original") == "70"  # original 70 shown
+    assert box.props.get("tone") == "changed"
 
 
 async def test_bad_text_reverts(user):
     await user.open("/")
     user.find("Archers").click()
-    user.find(marker="cell-towers.archers.price.1").clear().type("abc").trigger("keydown.enter")
+    _commit(user, "cell-towers.archers.price.1", "abc")
     await user.should_see("Not a number")
-    c = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
+    c = _box(user, "cell-towers.archers.price.1")
     assert c.value == "70"
-    await user.should_not_see(marker="orig-towers.archers.price.1")
+    assert c.props.get("original") is None
+    assert c.props.get("tone") is None
 
 
 async def test_enum_read_only(user):
@@ -30,39 +45,38 @@ async def test_enum_read_only(user):
 async def test_reset_cell_reverts_value(user):
     await user.open("/")
     user.find("Archers").click()
-    cell = user.find(marker="cell-towers.archers.price.1")
-    cell.clear().type("7").trigger("keydown.enter")
-    await user.should_see(marker="orig-towers.archers.price.1")
-    # Click reset button for this cell:
-    user.find(marker="reset-towers.archers.price.1").click()
-    await user.should_not_see(marker="orig-towers.archers.price.1")
+    _commit(user, "cell-towers.archers.price.1", "7")
+    assert _box(user, "cell-towers.archers.price.1").props.get("original") == "70"
+    # Reset this cell:
+    user.find(marker="cell-towers.archers.price.1").trigger("reset")
+    box = _box(user, "cell-towers.archers.price.1")
+    assert box.props.get("original") is None
+    assert box.props.get("tone") is None
+    assert box.value == "70"
 
 
 async def test_warning_shown_for_negative(user):
     await user.open("/")
     user.find("Archers").click()
-    cell = user.find(marker="cell-towers.archers.price.1")
-    cell.clear().type("-10").trigger("keydown.enter")
-    await user.should_see("Negative values can break the game.")
+    _commit(user, "cell-towers.archers.price.1", "-10")
+    assert _box(user, "cell-towers.archers.price.1").props.get("warning") == "Negative values can break the game."
 
 
-async def test_warning_tooltip_not_duplicated(user):
+async def test_warning_not_duplicated(user):
     await user.open("/")
     user.find("Archers").click()
-    cell = user.find(marker="cell-towers.archers.price.1")
-    cell.clear().type("-10").trigger("keydown.enter")
-    cell.clear().type("-20").trigger("keydown.enter")
-    icon = list(user.find(marker="warn-towers.archers.price.1").elements)[0]
-    tooltips = [c for c in icon.default_slot.children if type(c).__name__ == "Tooltip"]
-    assert len(tooltips) == 1
-
+    _commit(user, "cell-towers.archers.price.1", "-10")
+    _commit(user, "cell-towers.archers.price.1", "-20")
+    box = _box(user, "cell-towers.archers.price.1")
+    assert box.props.get("warning") == "Negative values can break the game."
+    assert len(list(box.default_slot.children)) == 0
 
 async def test_headers_and_groups_rendered(user):
     await user.open("/")
     user.find("Archers").click()
     await user.should_see("Level 1")
     await user.should_see("Level 4")
-    await user.should_see("Row slider")
+    await user.should_see("Row %")
     await user.should_see("Skill a")
 
 
@@ -78,134 +92,177 @@ async def test_row_label_tooltips_show_raw_id(user):
     await user.open("/")
     user.find("Knights").click()
     await user.should_see("Cd mult (info text)")
-    tooltips = [e.text for e in user._gather_elements(None, ui.tooltip, None, None)]
-    assert "skill_c.s_cd_mult" in tooltips
-    assert "skill_c.cd_mult" in tooltips
-    assert "price" in tooltips
+    titles = [e.props.get("title") for e in user._gather_elements(None, ui.label, None, None)]
+    assert "skill_c.s_cd_mult" in titles
+    assert "skill_c.cd_mult" in titles
+    assert "price" in titles
 
-async def test_precision_formatting_and_c2_step(user):
+async def test_precision_formatting(user):
     await user.open("/")
     user.find("Heroes").click()
     user.find("Bolin").click()
     # heroes.hero_bolin.skill_c.boss_hp_percentage has original 0.002
     await user.should_see("0.002")
-    c = list(user.find(marker="cell-heroes.hero_bolin.skill_c.boss_hp_percentage").elements)[0]
-    assert c.value == "0.002"
-    # Open C2 panel and check step
-    user.find(marker="row-expand-skill_c-boss_hp_percentage").click()
-    sl = list(user.find(marker="c2-slider-heroes.hero_bolin.skill_c.boss_hp_percentage").elements)[0]
-    assert sl._props["step"] == 0.001
+    assert _val(user, "cell-heroes.hero_bolin.skill_c.boss_hp_percentage") == "0.002"
 
 
-async def test_c2_panel_toggle(user):
+def _val(user, marker):
+    return _box(user, marker).value
+
+
+PRICE1 = "cell-towers.archers.price.1"  # original 70
+PRICE2 = "cell-towers.archers.price.2"  # original 100
+
+
+async def test_step_up_down_saves_and_marks_changed(user):
     await user.open("/")
     user.find("Archers").click()
-    # Click on the row label or expand button for Price:
-    user.find(marker="row-expand-price").click()
-    # Should see C2 panel with lock and level slider:
-    await user.should_see(marker="c2-lock-price")
-    await user.should_see(marker="c2-bar-orig-towers.archers.price.1")
-    await user.should_see(marker="c2-bar-curr-towers.archers.price.1")
+    _step(user, PRICE1, 1)
+    assert _val(user, PRICE1) == "71"
+    assert _box(user, PRICE1).props.get("original") == "70"
+    _step(user, PRICE1, -1)
+    _step(user, PRICE1, -1)
+    assert _val(user, PRICE1) == "69"
+    _step(user, PRICE1, 1)
+    assert _val(user, PRICE1) == "70"
+    assert _box(user, PRICE1).props.get("original") is None
 
 
-async def test_card_c1_slider_halves_prices(user):
-    await user.open("/")
-    user.find("Knights").click()
-    slider = user.find(marker="card-slider-all-costs")
-    # 0.25 track maps to 50%:
-    slider.trigger("change", 0.25)
-    await user.should_see("50%")
-    c1 = list(user.find(marker="cell-towers.knights.price.1").elements)[0]
-    c2 = list(user.find(marker="cell-towers.knights.price.2").elements)[0]
-    c3 = list(user.find(marker="cell-towers.knights.price.3").elements)[0]
-    c4 = list(user.find(marker="cell-towers.knights.price.4").elements)[0]
-    assert c1.value == "35"
-    assert c2.value == "55"
-    assert c3.value == "80"
-    assert c4.value == "110"
-
-
-
-async def test_card_c1_slider_zero_and_max(user):
-    await user.open("/")
-    user.find("Knights").click()
-    slider = user.find(marker="card-slider-all-costs")
-    # 0.0 track maps to 0%:
-    slider.trigger("change", 0.0)
-    await user.should_see("0%")
-    c1 = list(user.find(marker="cell-towers.knights.price.1").elements)[0]
-    assert c1.value == "0"
-    # 1.0 track maps to 500%:
-    slider.trigger("change", 1.0)
-    await user.should_see("500%")
-    assert c1.value == "350"
-
-async def test_row_c1_slider_and_mixed_label(user):
+async def test_shift_step_is_ten_times(user):
     await user.open("/")
     user.find("Archers").click()
-    sl = user.find(marker="row-slider-price")
-    # 0.25 track maps to 50%:
-    sl.trigger("change", 0.25)
-    c1 = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
-    c2 = list(user.find(marker="cell-towers.archers.price.2").elements)[0]
-    assert c1.value == "35"
-    assert c2.value == "50"
-    row_val = list(user.find(marker="row-val-price").elements)[0]
-    assert row_val.text == "50%"
-
-    # Edit one cell to create mixed ratio:
-    user.find(marker="cell-towers.archers.price.1").clear().type("99").trigger("keydown.enter")
-    row_val = list(user.find(marker="row-val-price").elements)[0]
-    assert row_val.text == "mixed"
+    _step(user, PRICE1, 1, True)
+    assert _val(user, PRICE1) == "80"
+    _step(user, PRICE1, -1, True)
+    _step(user, PRICE1, -1, True)
+    assert _val(user, PRICE1) == "60"
 
 
-async def test_row_c1_slider_fine_step_150_pct(user):
+async def test_step_uses_smallest_digit_of_original(user):
+    await user.open("/")
+    user.find("Heroes").click()
+    user.find("Bolin").click()
+    marker = "cell-heroes.hero_bolin.skill_c.boss_hp_percentage"  # original 0.002
+    _step(user, marker, 1)
+    assert _val(user, marker) == "0.003"
+    _step(user, marker, 1, True)
+    assert _val(user, marker) == "0.013"
+
+
+async def test_step_event_steps_cell(user):
     await user.open("/")
     user.find("Archers").click()
-    sl = user.find(marker="row-slider-price")
-    # 0.5625 track maps to 150% exactly:
-    sl.trigger("change", 0.5625)
-    await user.should_see("150%")
-    c1 = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
-    # 70 * 1.5 = 105
-    assert c1.value == "105"
+    user.find(marker=PRICE1).trigger("step", {"direction": 1, "shiftKey": False})
+    assert _val(user, PRICE1) == "71"
+    user.find(marker=PRICE1).trigger("step", {"direction": -1, "shiftKey": True})
+    assert _val(user, PRICE1) == "61"
 
 
-async def test_c2_lock_moves_all_levels(user):
+async def test_step_refreshes_row_pct_and_quick_scale(user):
     await user.open("/")
     user.find("Archers").click()
-    user.find(marker="row-expand-price").click()
-    # Turn on lock:
-    user.find(marker="c2-lock-price").click()
-    # Move Level 1 from 70 to 140 (200%):
-    user.find(marker="c2-slider-towers.archers.price.1").trigger("change", 140.0)
-    c2 = list(user.find(marker="cell-towers.archers.price.2").elements)[0]
-    # Original was 100, so 200% scales to 200:
-    assert c2.value == "200"
+    _step(user, PRICE1, 1)
+    assert _val(user, "row-pct-price") == "mixed"
+    assert _val(user, "card-pct-all-costs") == "mixed"
+    assert _box(user, "row-pct-price").props.get("tone") == "mixed"
+    assert _box(user, "card-pct-all-costs").props.get("tone") == "mixed"
+    _step(user, PRICE1, -1)
+    assert _val(user, "row-pct-price") == "100%"
+    assert _val(user, "card-pct-all-costs") == "100%"
+    assert _box(user, "row-pct-price").props.get("tone") is None
+    assert _box(user, "card-pct-all-costs").props.get("tone") is None
 
 
-async def test_c2_unlocked_moves_single_level(user):
-    await user.open("/")
-    user.find("Archers").click()
-    user.find(marker="row-expand-price").click()
-    # Move Level 1 without lock:
-    user.find(marker="c2-slider-towers.archers.price.1").trigger("change", 140.0)
-    c1 = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
-    c2 = list(user.find(marker="cell-towers.archers.price.2").elements)[0]
-    assert c1.value == "140"
-    assert c2.value == "100"
-
-
-async def test_zero_original_leaves_at_zero(user):
+async def test_step_stops_at_zero(user):
     await user.open("/")
     user.find("Alchemist").click()
-    p_str = "towers.alchemist.ultimate.gold_pig.armor"
-    cell = list(user.find(marker=f"cell-{p_str}").elements)[0]
-    assert cell.value == "0"
-    # Move row slider to 500% (track 1.0):
-    user.find(marker="row-slider-ultimate-gold_pig-armor").trigger("change", 1.0)
-    cell = list(user.find(marker=f"cell-{p_str}").elements)[0]
-    assert cell.value == "0"
+    marker = "cell-towers.alchemist.ultimate.gold_pig.armor"  # original 0
+    _step(user, marker, -1)
+    assert _val(user, marker) == "0"
+    _step(user, marker, 1)
+    assert _val(user, marker) == "1"
+
+
+async def test_step_commits_typed_text_first(user):
+    await user.open("/")
+    user.find("Archers").click()
+    user.find(marker=PRICE1).clear().type("200")
+    _step(user, PRICE1, 1)
+    assert _val(user, PRICE1) == "201"
+
+
+async def test_row_pct_typed_scales_row(user):
+    await user.open("/")
+    user.find("Archers").click()
+    _commit(user, "row-pct-price", "50")
+    assert _val(user, PRICE1) == "35"
+    assert _val(user, PRICE2) == "50"
+    assert _val(user, "row-pct-price") == "50%"
+    assert _box(user, "row-pct-price").props.get("tone") == "pct-changed"
+    _commit(user, "row-pct-price", "150%")
+    assert _val(user, PRICE1) == "105"
+    assert _val(user, "row-pct-price") == "150%"
+
+
+async def test_row_pct_bad_text_reverts(user):
+    await user.open("/")
+    user.find("Archers").click()
+    _commit(user, "row-pct-price", "abc")
+    await user.should_see("Not a number")
+    assert _val(user, "row-pct-price") == "100%"
+    assert _val(user, PRICE1) == "70"
+
+
+async def test_row_pct_typed_value_clamps(user):
+    await user.open("/")
+    user.find("Archers").click()
+    _commit(user, "row-pct-price", "900")
+    assert _val(user, "row-pct-price") == "500%"
+    assert _val(user, PRICE1) == "350"
+
+
+async def test_row_pct_steps_one_and_ten(user):
+    await user.open("/")
+    user.find("Archers").click()
+    _step(user, "row-pct-price", 1)
+    assert _val(user, "row-pct-price") == "101%"
+    _step(user, "row-pct-price", 1, True)
+    assert _val(user, "row-pct-price") == "111%"
+    _step(user, "row-pct-price", -1)
+    assert _val(user, "row-pct-price") == "110%"
+    assert _val(user, PRICE1) == "77"
+
+
+async def test_row_pct_mixed_steps_from_100(user):
+    await user.open("/")
+    user.find("Archers").click()
+    _commit(user, PRICE1, "99")
+    assert _val(user, "row-pct-price") == "mixed"
+    _step(user, "row-pct-price", -1)
+    assert _val(user, "row-pct-price") != "mixed"
+    assert _val(user, PRICE1) == "69"
+
+
+async def test_quick_scale_box_typed_and_stepped(user):
+    await user.open("/")
+    user.find("Knights").click()
+    _commit(user, "card-pct-all-costs", "50")
+    assert _val(user, "card-pct-all-costs") == "50%"
+    assert [_val(user, f"cell-towers.knights.price.{i}") for i in (1, 2, 3, 4)] == ["35", "55", "80", "110"]
+    _step(user, "card-pct-all-costs", 1)
+    assert _val(user, "card-pct-all-costs") == "51%"
+    assert _val(user, "row-pct-price") == "51%"
+    _commit(user, "card-pct-all-costs", "0")
+    assert _val(user, "cell-towers.knights.price.1") == "0"
+    _commit(user, "card-pct-all-costs", "500")
+    assert _val(user, "cell-towers.knights.price.1") == "350"
+
+
+async def test_row_without_nonzero_originals_has_no_pct_box(user):
+    await user.open("/")
+    user.find("Alchemist").click()
+    assert _val(user, "cell-towers.alchemist.ultimate.gold_pig.armor") == "0"
+    await user.should_not_see(marker="row-pct-ultimate-gold_pig-armor")
 
 
 async def test_sniper_card_opens_without_error(user):
@@ -213,17 +270,3 @@ async def test_sniper_card_opens_without_error(user):
     user.find("Sniper").click()
     await user.should_see("Sniper")
     await user.should_see("Max range")
-
-
-async def test_c2_panel_not_rebuilt_on_cell_or_slider_edit(user):
-    await user.open("/")
-    user.find("Archers").click()
-    user.find(marker="row-expand-price").click()
-    lock_el = list(user.find(marker="c2-lock-price").elements)[0]
-
-    # Commit a cell edit:
-    user.find(marker="cell-towers.archers.price.1").clear().type("75").trigger("keydown.enter")
-
-    # The C2 panel must still be open, and the lock switch element must be the exact same object:
-    lock_el_after = list(user.find(marker="c2-lock-price").elements)[0]
-    assert lock_el_after is lock_el

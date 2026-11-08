@@ -11,7 +11,7 @@ UI_TABS: tuple[str, ...] = (
 from krmod.profiles import ProfileError, slug
 from krmod.state import AppState
 from krmod.ui import gamefolder
-from krmod.ui.sliders import live_slider
+from krmod.ui.livebox import LiveBox
 
 
 class TopBar:
@@ -31,55 +31,64 @@ class TopBar:
 
         self.self_check_label: ui.label
         self.warning_chip: ui.chip
+        self.warning_tip: ui.tooltip
         self.change_label: ui.label
         self.profile_button: ui.button
         self.profile_menu: ui.menu
         self.topbar_right: ui.row
         self.tabs_el: ui.tabs
         self.speed_buttons: dict[int, ui.button] = {}
-        self.enemy_slider: ui.slider
-        self.enemy_label: ui.label
-        self.troop_slider: ui.slider
-        self.troop_label: ui.label
+        self.enemy_box: LiveBox
+        self.troop_box: LiveBox
         self._build()
 
     def _build(self) -> None:
+        # One row from 1280 px (Tailwind xl); below that two rows: row 1 is the title block and
+        # the tabs, row 2 the live controls and the right end. `xl:contents` dissolves row 1 so
+        # its children join the header row on wide windows.
         with ui.header().classes(
-            "w-full items-center justify-between px-3 py-2 bg-slate-900 text-white shadow flex-nowrap"
+            "w-full flex flex-col xl:flex-row flex-nowrap items-stretch xl:items-center justify-between gap-1 xl:gap-0 "
+            "px-3 py-2 bg-slate-900 text-white shadow"
         ):
-            # Left section: App name, self-check status and warning chip
-            with ui.row().classes("items-center gap-3 flex-nowrap shrink-0"):
-                ui.label("KrGenesis Mod").classes("text-lg font-bold tracking-tight text-white")
+            with ui.row().classes("items-center justify-between gap-x-3 flex-nowrap min-w-0 xl:contents"):
+                # Title block: app name, with the self-check status and warning chip under it
+                with ui.column().classes("gap-0 min-w-0 shrink"):
+                    ui.label("KrGenesis Mod").classes("text-lg font-bold tracking-tight text-white leading-tight")
+                    with ui.row().classes("items-center gap-2 flex-nowrap min-w-0 w-full"):
+                        check = self.state.index.self_check()
+                        self.self_check_label = ui.label(
+                            f"{check.placed}/{check.total} values placed"
+                        ).classes("text-xs text-slate-400 font-mono leading-tight shrink-0 whitespace-nowrap")
 
-                check = self.state.index.self_check()
-                self.self_check_label = ui.label(
-                    f"{check.placed}/{check.total} values placed"
-                ).classes("text-xs text-slate-400 font-mono")
+                        has_warning, warn_text = self._warning_summary()
+                        # A long warning is cut short in the chip; the tooltip keeps the full text.
+                        self.warning_chip = ui.chip(
+                            warn_text, icon="warning", color="amber-7"
+                        ).props("dense outline text-color=amber-4").classes(
+                            "text-xs m-0 min-w-0 shrink overflow-hidden [&>div]:block [&>div]:truncate"
+                        ).mark("warning-chip")
+                        self.warning_chip.visible = has_warning
+                        with self.warning_chip:
+                            self.warning_tip = ui.tooltip(warn_text)
 
-                has_warning, warn_text = self._warning_summary()
-                self.warning_chip = ui.chip(
-                    warn_text, icon="warning", color="amber-7"
-                ).props("dense outline text-color=amber-4").classes("text-xs").mark("warning-chip")
-                self.warning_chip.visible = has_warning
+                # Tab pills
+                self.tabs_el = ui.tabs(
+                    value="Towers",
+                    on_change=lambda e: self.on_tab_change(e.value),
+                ).props(
+                    "dense no-caps inline-label active-color=white active-bg-color=primary rounded indicator-color=transparent text-color=grey-5"
+                ).classes("bg-slate-800/80 p-0.5 rounded-lg shrink-0")
+                with self.tabs_el:
+                    for tab in UI_TABS:
+                        ui.tab(tab).props("dense").classes("px-1.5 py-0 min-h-0 text-xs")
 
-            # Center section: Tab pills
-            self.tabs_el = ui.tabs(
-                value="Towers",
-                on_change=lambda e: self.on_tab_change(e.value),
-            ).props(
-                "dense no-caps inline-label active-color=white active-bg-color=primary rounded indicator-color=transparent text-color=grey-5"
-            ).classes("bg-slate-800/80 p-0.5 rounded-lg shrink-0")
-            with self.tabs_el:
-                for tab in UI_TABS:
-                    ui.tab(tab).props("dense").classes("px-1.5 py-0 min-h-0 text-xs")
-
-            # Right section: Live controls, change count, profile dropdown
+            # Live controls, change count, game folder, profile dropdown
             self.topbar_right = ui.row().classes(
-                "items-center gap-1.5 flex-nowrap shrink-0 pr-4"
+                "items-center gap-1.5 flex-nowrap shrink-0 xl:pr-4"
             )
             with self.topbar_right:
                 # Speed buttons
-                with ui.row().classes("items-center bg-slate-800 rounded p-0.5 gap-0.5"):
+                with ui.row().classes("items-center bg-slate-800 rounded p-0.5 gap-0.5 shrink-0"):
                     for s in (1, 2, 3):
                         btn = (
                             ui.button(
@@ -92,48 +101,27 @@ class TopBar:
                         self.speed_buttons[s] = btn
                 self._update_speed_buttons()
 
-                # Enemy multiplier slider
-                with ui.row().classes("items-center gap-1 flex-nowrap"):
-                    self.enemy_label, self.enemy_slider = live_slider(
-                        self.state,
-                        "enemy_mult",
-                        "Enemies",
-                        "enemy-mult",
-                        self.on_refresh,
-                        slider_classes="w-full",
-                        wrapper_classes="w-[75px] shrink-0",
-                        slider_props="track-color=grey-7",
-                        label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
+                # Live enemy multiplier and troop count boxes
+                self.enemy_box = LiveBox(self.state, "enemy_mult", "enemy-mult", self.on_refresh, dark=True)
+                self.troop_box = LiveBox(self.state, "troop_delta", "troop-delta", self.on_refresh, dark=True)
+
+                # Right end: pushed to the right of row 2
+                with ui.row().classes("items-center gap-1.5 flex-nowrap shrink-0 ml-auto"):
+                    self.change_label = ui.label(self._change_text()).classes(
+                        "text-xs text-slate-300 font-mono px-2 py-1 bg-slate-800 rounded whitespace-nowrap"
                     )
 
-                # Troop multiplier slider
-                with ui.row().classes("items-center gap-1 flex-nowrap"):
-                    self.troop_label, self.troop_slider = live_slider(
-                        self.state,
-                        "troop_mult",
-                        "Troops",
-                        "troop-mult",
-                        self.on_refresh,
-                        slider_classes="w-full",
-                        wrapper_classes="w-[75px] shrink-0",
-                        slider_props="track-color=grey-7",
-                        label_classes="text-xs text-slate-300 font-mono whitespace-nowrap",
-                    )
-                self.change_label = ui.label(self._change_text()).classes(
-                    "text-xs text-slate-300 font-mono px-2 py-1 bg-slate-800 rounded"
-                )
+                    ui.button(icon="folder_open", on_click=self._open_game_dialog).props(
+                        "flat dense round text-color=white"
+                    ).mark("game-folder").tooltip(f"Game folder: {self.state.paths.game_dir}")
 
-                ui.button(icon="folder_open", on_click=self._open_game_dialog).props(
-                    "flat dense round text-color=white"
-                ).mark("game-folder").tooltip(f"Game folder: {self.state.paths.game_dir}")
+                    self.profile_button = ui.button(
+                        self.state.profile.name, icon="arrow_drop_down"
+                    ).props("flat dense no-caps text-color=white").mark("profile-menu")
 
-                self.profile_button = ui.button(
-                    self.state.profile.name, icon="arrow_drop_down"
-                ).props("flat dense no-caps text-color=white").mark("profile-menu")
-
-                with self.profile_button:
-                    self.profile_menu = ui.menu().classes("min-w-[180px]")
-                    self._build_profile_menu()
+                    with self.profile_button:
+                        self.profile_menu = ui.menu().classes("min-w-[180px]")
+                        self._build_profile_menu()
         self._build_dialogs()
 
     def _change_text(self) -> str:
@@ -322,17 +310,14 @@ class TopBar:
         self.self_check_label.text = f"{check.placed}/{check.total} values placed"
         has_warning, warn_text = self._warning_summary()
         self.warning_chip.text = warn_text
+        self.warning_tip.text = warn_text
         self.warning_chip.visible = has_warning
         self.change_label.text = self._change_text()
         self.profile_button.text = self.state.profile.name
         self._build_profile_menu()
         self._update_speed_buttons()
-        e_val = self.state.profile.live.enemy_mult
-        self.enemy_slider.value = e_val
-        self.enemy_label.text = f"Enemies {e_val:g}x"
-        t_val = self.state.profile.live.troop_mult
-        self.troop_slider.value = t_val
-        self.troop_label.text = f"Troops {t_val:g}x"
+        self.enemy_box.refresh()
+        self.troop_box.refresh()
 
     def _update_speed_buttons(self) -> None:
         curr_speed = self.state.profile.live.speed

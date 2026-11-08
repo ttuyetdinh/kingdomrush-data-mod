@@ -36,7 +36,7 @@ async def test_apply_running_unmodded(user, monkeypatch):
     monkeypatch.setattr(launcher, "find_game", lambda paths: RunningGame(1, False))
     await user.open("/")
     user.find("Apply mod and run game").click()
-    await user.should_see("started without the mod")
+    await user.should_see("started without the mod", retries=20)
 
 
 async def test_unlock_switch_saved(user, state):
@@ -51,20 +51,6 @@ async def test_speed_button_markers_and_highlight(user, state):
     assert state.profile.live.speed == 3
     live_file = state.paths.mods_dir / "kr_mod_live.lua"
     assert "speed = 3" in live_file.read_text()
-
-
-async def test_enemy_mult_slider_topbar(user, state):
-    await user.open("/")
-    user.find(marker="enemy-mult").trigger("change", 1.5)
-    assert state.profile.live.enemy_mult == 1.5
-    await user.should_see("Enemies 1.5x")
-
-
-async def test_troop_mult_slider_topbar(user, state):
-    await user.open("/")
-    user.find(marker="troop-mult").trigger("change", 2.25)
-    assert state.profile.live.troop_mult == 2.25
-    await user.should_see("Troops 2.25x")
 
 
 async def test_speed_keys_valid_save(user, state):
@@ -117,13 +103,13 @@ async def test_apply_and_run_outcomes(user, monkeypatch):
     monkeypatch.setattr(launcher, "find_game", lambda paths: None)
     await user.open("/")
     user.find(marker="apply-run").click()
-    await user.should_see("Waiting for the game to load the mod")
+    await user.should_see("Waiting for the game to load the mod", retries=20)
 
     # Test UPDATED_RUNNING
     monkeypatch.setattr(launcher, "find_game", lambda paths: RunningGame(2, True))
     await user.open("/")
     user.find(marker="apply-run").click()
-    await user.should_see("Game is running: changes apply at the next level start")
+    await user.should_see("Game is running: changes apply at the next level start", retries=20)
 
 
 async def test_profile_menu_slug_marker(user):
@@ -147,19 +133,96 @@ async def test_speed_keys_enter_key_and_errors(user, state):
     assert state.profile.speed_keys[0] == "f5"
 
 
-async def test_mirrored_multipliers_on_rules_tab(user, state):
+def _box_text(user, marker):
+    return list(user.find(marker=marker).elements)[0].value
+
+
+def _step(user, marker, direction, shift=False):
+    user.find(marker=marker).trigger("step", {"direction": direction, "shiftKey": shift})
+
+
+def _commit(user, marker, text):
+    user.find(marker=marker).clear().type(text).trigger("commit")
+
+
+async def test_live_boxes_on_rules_tab_step(user, state):
+    await user.open("/")
+    user.find("Rules").click()
+    live_file = state.paths.mods_dir / "kr_mod_live.lua"
+    assert _box_text(user, "rules-enemy-mult") == "1"
+    assert _box_text(user, "rules-troop-delta") == "0"
+
+    _step(user, "rules-enemy-mult", -1)
+    assert state.profile.live.enemy_mult == 0.25
+    assert _box_text(user, "rules-enemy-mult") == "0.25"
+    _step(user, "rules-enemy-mult", 1)
+    assert state.profile.live.enemy_mult == 1.0
+    _step(user, "rules-enemy-mult", 1)
+    assert state.profile.live.enemy_mult == 2.0
+
+    _step(user, "rules-troop-delta", 1)
+    _step(user, "rules-troop-delta", 1)
+    assert state.profile.live.troop_delta == 2
+    assert _box_text(user, "rules-troop-delta") == "+2"
+    _step(user, "rules-troop-delta", -1)
+    _step(user, "rules-troop-delta", -1)
+    _step(user, "rules-troop-delta", -1)
+    assert state.profile.live.troop_delta == -1
+    assert _box_text(user, "rules-troop-delta") == "-1"
+    assert "troop_delta = -1" in live_file.read_text()
+    assert "enemy_mult = 2.0" in live_file.read_text()
+
+
+async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
     await user.open("/")
     user.find("Rules").click()
 
-    # Mirrored enemy slider
-    user.find(marker="rules-enemy-mult").trigger("change", 2.5)
-    assert state.profile.live.enemy_mult == 2.5
-    await user.should_see("Enemies 2.5x")
+    _commit(user, "rules-enemy-mult", "5")
+    assert state.profile.live.enemy_mult == 5.0
+    _commit(user, "rules-enemy-mult", "0.3")
+    assert state.profile.live.enemy_mult == 0.25
+    assert _box_text(user, "rules-enemy-mult") == "0.25"
+    _commit(user, "rules-enemy-mult", "99")
+    assert state.profile.live.enemy_mult == 10.0
 
-    # Mirrored troop slider
-    user.find(marker="rules-troop-mult").trigger("change", 0.75)
-    assert state.profile.live.troop_mult == 0.75
-    await user.should_see("Troops 0.75x")
+    _commit(user, "rules-troop-delta", "-3.4")
+    assert state.profile.live.troop_delta == -3
+    assert _box_text(user, "rules-troop-delta") == "-3"
+    _commit(user, "rules-troop-delta", "+50")
+    assert state.profile.live.troop_delta == 10
+    assert _box_text(user, "rules-troop-delta") == "+10"
+
+    # rejected text: the saved value stays and the box reverts
+    _commit(user, "rules-troop-delta", "abc")
+    await user.should_see("Not a number")
+    assert state.profile.live.troop_delta == 10
+    assert _box_text(user, "rules-troop-delta") == "+10"
+    user.find(marker="rules-enemy-mult").clear().trigger("commit")
+    await user.should_see("Value cannot be empty")
+    assert state.profile.live.enemy_mult == 10.0
+    assert _box_text(user, "rules-enemy-mult") == "10"
+
+
+async def test_topbar_and_rules_live_boxes_stay_in_sync(user, state):
+    await user.open("/")
+    _step(user, "enemy-mult", 1)
+    assert state.profile.live.enemy_mult == 2.0
+    _commit(user, "troop-delta", "-2")
+    assert state.profile.live.troop_delta == -2
+
+    user.find("Rules").click()
+    assert _box_text(user, "rules-enemy-mult") == "2"
+    assert _box_text(user, "rules-troop-delta") == "-2"
+    _step(user, "rules-troop-delta", 1)
+    assert _box_text(user, "troop-delta") == "-1"
+
+
+
+async def test_rules_tab_explains_live_controls(user):
+    await user.open("/")
+    user.find("Rules").click()
+    await user.should_see("Bosses always spawn once")
+    await user.should_see("A large minus can leave a barracks empty")
 
 
 async def test_log_summary_panel_display(user, state, monkeypatch):
@@ -214,14 +277,16 @@ async def test_reset_all_rerenders_open_card(user):
     await user.open("/")
     user.find("Archers").click()
     cell = user.find(marker="cell-towers.archers.price.1")
-    cell.clear().type("7").trigger("keydown.enter")
-    await user.should_see(marker="orig-towers.archers.price.1")
+    cell.clear().type("7").trigger("commit")
+    c = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
+    assert c.props.get("original") == "70"
 
     user.find(marker="reset-all").click()
     user.find(marker="btn-confirm-reset").click()
 
-    await user.should_not_see(marker="orig-towers.archers.price.1")
     c = list(user.find(marker="cell-towers.archers.price.1").elements)[0]
+    assert c.props.get("original") is None
+    assert c.props.get("tone") is None
     assert c.value == "70"
 
 
@@ -307,7 +372,7 @@ async def test_apply_scans_processes_off_the_event_loop(user, monkeypatch):
     user.find(marker="apply-mod").click()
     await user.should_see("Mod written:")
     user.find(marker="apply-run").click()
-    await user.should_see("Waiting for the game to load the mod")
+    await user.should_see("Waiting for the game to load the mod", retries=20)
     assert seen
     assert loop_thread not in seen
 

@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import math
-import re
 from typing import Sequence
 
 from krmod.model.categories import CATEGORY_NAMES, category_of
 from krmod.model.grouping import GroupIndex
 from krmod.model.rows import StatRow, build_rows
-from krmod.model.scaling import c2_range, common_pct, scale, warn
+from krmod.model.scaling import common_pct, scale, warn
+from krmod.model.stepping import parse_number
 from krmod.model.values import BalanceTree, KeyPath, Leaf, path_str
 from krmod.modgen.launcher import RunOutcome, apply_and_run
 from krmod.modgen.writer import ApplyResult, apply_mod, write_live
@@ -20,10 +20,6 @@ from krmod.profiles import (
     ProfileStore,
     stale_changes,
     validate_speed_keys,
-)
-
-_ASCII_NUMBER_RE = re.compile(
-    r"^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$"
 )
 
 
@@ -40,6 +36,8 @@ class AppState:
         self.index = index
         self.store = store
         self._rows_cache: dict[str, list[StatRow]] = {}
+        # (profile name, scaled cells, percent) of the last Row % or Quick scale edit
+        self._last_pct: tuple[str, tuple[KeyPath, ...], float] | None = None
 
     def switch_game(self, paths: GamePaths, tree: BalanceTree, index: GroupIndex) -> None:
         """Point the state at another game folder; the profile store and its changes stay."""
@@ -47,6 +45,7 @@ class AppState:
         self.tree = tree
         self.index = index
         self._rows_cache.clear()
+        self._last_pct = None
 
     @property
     def profile(self) -> Profile:
@@ -111,6 +110,7 @@ class AppState:
 
     def set_value(self, path: KeyPath, value: float) -> str | None:
         self._validate_editable(path, value)
+        self._last_pct = None
         self._store(path, value)
         self.store.save(self.profile)
         if float(value) == self.original(path):
@@ -118,31 +118,21 @@ class AppState:
         return warn(path, float(value))
 
     def parse_and_set(self, path: KeyPath, text: str) -> tuple[bool, str | None]:
-        if not isinstance(text, str):
-            return False, "Not a number."
-        s = text.strip()
-        if not s:
-            return False, "Value cannot be empty."
-        if not _ASCII_NUMBER_RE.match(s):
-            return False, "Not a number."
         try:
-            val = float(s)
-        except ValueError:
-            return False, "Not a number."
-        if not math.isfinite(val):
-            return False, "Not a number."
-        try:
+            val = parse_number(text)
             warning = self.set_value(path, val)
             return True, warning
         except ValueError as exc:
             return False, str(exc)
 
     def reset(self, path: KeyPath) -> None:
+        self._last_pct = None
         if path in self.profile.changes:
             del self.profile.changes[path]
             self.store.save(self.profile)
 
     def reset_all(self) -> None:
+        self._last_pct = None
         if self.profile.changes:
             self.profile.changes.clear()
             self.store.save(self.profile)
@@ -157,15 +147,15 @@ class AppState:
     def _eligible_row_cells(self, row: StatRow) -> list[KeyPath]:
         return [p for p in row.cells if self._scalable(p)]
 
+    def row_scalable(self, row: StatRow) -> bool:
+        """True when a percentage can change the row (some numeric cell with a nonzero original)."""
+        return bool(self._eligible_row_cells(row))
+
     def scale_row(self, row: StatRow, pct: float) -> None:
-        self._apply_pct(self._eligible_row_cells(row), round(pct, 1))
+        self._scale_paths(self._eligible_row_cells(row), pct)
 
     def row_pct(self, row: StatRow) -> float | None:
-        cells = self._eligible_row_cells(row)
-        if not cells:
-            return None
-        pairs = [(self.original(p), self.current(p)) for p in cells]
-        return common_pct(pairs)
+        return self._pct_of(self._eligible_row_cells(row))
 
     def _eligible_card_paths(
         self, card_id: str, category: str | None = None
@@ -187,49 +177,46 @@ class AppState:
         return [c for c in CATEGORY_NAMES if c in seen]
 
     def scale_card(self, card_id: str, category: str, pct: float) -> None:
-        self._apply_pct(self._eligible_card_paths(card_id, category), round(pct, 1))
+        self._scale_paths(self._eligible_card_paths(card_id, category), pct)
 
     def card_pct(self, card_id: str, category: str) -> float | None:
-        paths = self._eligible_card_paths(card_id, category)
+        return self._pct_of(self._eligible_card_paths(card_id, category))
+
+    def _scale_paths(self, paths: Sequence[KeyPath], pct: float) -> None:
+        pct = round(pct, 1)
+        self._apply_pct(paths, pct)
+        self._last_pct = (self.profile.name, tuple(paths), pct)
+
+    def _pct_of(self, paths: Sequence[KeyPath]) -> float | None:
+        """Percent shown in a Row % or Quick scale box (None = mixed).
+
+        Small values round the same for many percents (99% of 0.05 is still 0.05), so reading
+        the percent back from the values would snap a 99% step back to 100% and the arrows could
+        never move. The box last scaled therefore keeps its percent while its values still match
+        it; any other edit (a cell, a reset, another box, a profile switch) ends that.
+        """
         if not paths:
             return None
-        pairs = [(self.original(p), self.current(p)) for p in paths]
-        return common_pct(pairs)
-
-    def set_level(
-        self, path: KeyPath, value: float, locked_row: StatRow | None = None
-    ) -> str | None:
-        self._validate_editable(path, value)
-        orig = self.original(path)
-        if locked_row is None or orig == 0:
-            return self.set_value(path, value)
-
-        ratio = float(value) / orig
-        pct = ratio * 100.0
-        cells = self._eligible_row_cells(locked_row)
-        self._apply_pct(cells, pct)
-        if float(value) == orig:
-            return None
-        return warn(path, float(value))
-
-    def c2_range(self, row: StatRow) -> tuple[float, float]:
-        originals = [
-            self.original(p)
-            for p in row.cells
-            if p is not None and p in self.tree.leaves
-        ]
-        return c2_range(originals)
+        if self._last_pct is not None:
+            name, key, pct = self._last_pct
+            if (
+                name == self.profile.name
+                and key == tuple(paths)
+                and all(scale(self.original(p), pct) == self.current(p) for p in paths)
+            ):
+                return pct
+        return common_pct([(self.original(p), self.current(p)) for p in paths])
 
     def set_live(
         self,
         speed: int | None = None,
         enemy_mult: float | None = None,
-        troop_mult: float | None = None,
+        troop_delta: int | None = None,
     ) -> None:
         new_speed = self.profile.live.speed if speed is None else speed
         new_enemy = self.profile.live.enemy_mult if enemy_mult is None else enemy_mult
-        new_troop = self.profile.live.troop_mult if troop_mult is None else troop_mult
-        test_live = LiveSettings(speed=new_speed, enemy_mult=new_enemy, troop_mult=new_troop)
+        new_troop = self.profile.live.troop_delta if troop_delta is None else troop_delta
+        test_live = LiveSettings(speed=new_speed, enemy_mult=new_enemy, troop_delta=new_troop)
         test_live.validate()
         self.profile.live = test_live
         self.store.save(self.profile)

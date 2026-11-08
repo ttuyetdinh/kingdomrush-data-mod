@@ -72,18 +72,14 @@ def test_card_scale_covers_skills(state):
     )
 
 
-def test_locked_level_slider(state):
-    row = next(r for r in state.rows("towers/archers") if r.id == "price")
-    state.set_level(row.cells[0], 140, locked_row=row)
-    assert state.current(row.cells[1]) == scale(state.original(row.cells[1]), 200)
-
-
 def test_live_writes_file_and_saves(state):
-    state.set_live(speed=3, troop_mult=2)
+    state.set_live(speed=3, troop_delta=2)
     assert "speed = 3" in (state.paths.mods_dir / "kr_mod_live.lua").read_text()
-    assert ProfileStore(state.paths.profiles_dir).active().live.troop_mult == 2
+    assert ProfileStore(state.paths.profiles_dir).active().live.troop_delta == 2
     with pytest.raises(ProfileError):
         state.set_live(enemy_mult=0.6)
+    with pytest.raises(ProfileError):
+        state.set_live(troop_delta=11)
 
 
 def test_profile_switch_isolates_changes(state):
@@ -204,12 +200,6 @@ def test_alias_note(state):
         del state.tree.aliases[("towers", "archers", "price")]
 
 
-def test_c2_range(state):
-    row = next(r for r in state.rows("towers/archers") if r.id == "price")
-    rng = state.c2_range(row)
-    assert rng == (0.0, 690.0)
-
-
 def test_rows_caching(state):
     rows1 = state.rows("towers/archers")
     rows2 = state.rows("towers/archers")
@@ -265,42 +255,11 @@ def test_parse_and_set_returns_warning(state):
     assert "cooldown" in warn_msg.lower() or "break" in warn_msg.lower()
 
 
-def test_set_level_zero_original_fallback(state):
-    zero_path = ("synthetic", "test", "zero_stat")
-    from krmod.model.values import Leaf
-    state.tree.leaves[zero_path] = Leaf(path=zero_path, value=0.0, kind="num")
-    try:
-        from krmod.model.rows import StatRow
-        row = StatRow(
-            id="zero_stat",
-            group="test",
-            label="Zero Stat",
-            cells=(zero_path,),
-            is_enum=False,
-            read_only=False,
-        )
-        state.set_level(zero_path, 5.0, locked_row=row)
-        assert state.current(zero_path) == 5.0
-    finally:
-        state.tree.leaves.pop(zero_path, None)
-
-
 def test_duplicate_profile_with_explicit_source(state):
     state.new_profile("SourceProf")
     p = state.duplicate_profile("SourceProf", "DestProf")
     assert p.name == "DestProf"
     assert "DestProf" in state.profile_names()
-
-
-def test_locked_level_large_original_exact(state):
-    row = next(
-        r for r in state.rows("stages/stage_18")
-        if r.id == "veznan.boss.hp_max"
-    )
-    p = row.cells[0]
-    assert state.original(p) == 5666.0
-    state.set_level(p, 5667, locked_row=row)
-    assert state.current(p) == 5667
 
 
 def test_scale_row_noise_original_roundtrip_zero_changes(state):
@@ -334,7 +293,30 @@ def test_speed_click_bumps_live_seq_other_edits_keep_it(state):
 
     state.set_live(speed=1)
     first = seq()
-    state.set_live(enemy_mult=1.5)
+    state.set_live(enemy_mult=2.0)
     assert seq() == first
     state.set_live(speed=1)
     assert seq() > first
+
+
+def test_row_pct_keeps_a_step_that_rounds_back_to_the_same_values(state):
+    # Small decimals round the same for many percents: 99% of 0.05 is still 0.05. The box must
+    # still show the stepped percent, or the arrows could never leave 100%.
+    row, card = next(
+        (r, cid)
+        for cid in (c.id for c in state.index.cards("Heroes"))
+        for r in state.rows(cid)
+        if state.row_scalable(r)
+        and all(0 < state.original(p) <= 0.1 for p in r.cells if p is not None)
+    )
+    cells = [p for p in row.cells if p is not None]
+    state.scale_row(row, 99)
+    assert state.row_pct(row) == 99
+    assert [state.current(p) for p in cells] == [scale(state.original(p), 99) for p in cells]
+    state.scale_row(row, 60)
+    assert state.row_pct(row) == 60
+    # An edit that breaks the remembered percent falls back to reading the values.
+    state.set_value(cells[0], 0.5)
+    assert state.row_pct(row) != 60
+    state.reset_all()
+    assert state.row_pct(row) == 100

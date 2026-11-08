@@ -7,8 +7,12 @@ import krmod
 from krmod.paths import (
     GameNotFoundError,
     GamePaths,
+    load_cards_folded,
     load_game_dir_setting,
+    load_settings,
+    save_cards_folded,
     save_game_dir_setting,
+    save_settings,
     validate_game_dir,
 )
 
@@ -87,6 +91,38 @@ def test_corrupt_settings_mean_no_setting(repo, content):
 
 def test_missing_settings_mean_no_setting(repo):
     assert load_game_dir_setting(repo) is None
+
+
+def test_saving_one_key_keeps_the_others(repo, tmp_path):
+    chosen = _fake_game(tmp_path / "chosen")
+    save_game_dir_setting(repo, chosen)
+    save_cards_folded(repo, True)
+    assert load_settings(repo) == {"game_dir": str(chosen.resolve()), "cards_folded": True}
+    save_game_dir_setting(repo, chosen)
+    assert load_cards_folded(repo) is True
+    save_cards_folded(repo, False)
+    assert load_game_dir_setting(repo) == chosen.resolve()
+    assert load_cards_folded(repo) is False
+
+
+@pytest.mark.parametrize("content", ["{ not json", "[]", "5", "null", ""])
+def test_corrupt_settings_file_counts_as_empty(repo, content):
+    (repo / "settings.json").write_text(content, encoding="utf-8")
+    assert load_settings(repo) == {}
+    assert load_cards_folded(repo) is False
+    save_settings(repo, cards_folded=True)  # a corrupt file is replaced, not an error
+    assert load_settings(repo) == {"cards_folded": True}
+
+
+def test_missing_settings_file_counts_as_empty(repo):
+    assert load_settings(repo) == {}
+    assert load_cards_folded(repo) is False
+
+
+@pytest.mark.parametrize("value", ["true", 1, "yes", None])
+def test_cards_folded_only_true_means_folded(repo, value):
+    save_settings(repo, cards_folded=value)
+    assert load_cards_folded(repo) is False
 
 
 def test_saved_but_invalid_folder_reports_it(repo, tmp_path):

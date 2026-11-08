@@ -35,13 +35,13 @@ def test_invalid_live_ignored(harness):
     setup(harness, speed=2)
     harness.write_raw(
         "kr_mod_live.lua",
-        "return { speed = 5, enemy_mult = 1, troop_mult = 1 }",
+        "return { speed = 5, enemy_mult = 1, troop_delta = 0 }",
     )
     harness.lua("NOW = 1; game:update(0.03)")
     assert harness.lua("return game.DBG_TIME_MULT") == "2"
     harness.write_raw(
         "kr_mod_live.lua",
-        "return { speed = 1, enemy_mult = 0.6, troop_mult = 1 }",
+        "return { speed = 1, enemy_mult = 0.6, troop_delta = 0 }",
     )
     harness.lua("NOW = 2; game:update(0.03)")
     assert harness.lua("return game.DBG_TIME_MULT") == "2"
@@ -75,14 +75,26 @@ def test_read_live_validation(harness):
     assert harness.lua(check) == "true"
 
     # bad speed
-    harness.write_raw("kr_mod_live.lua", "return { speed = 0, enemy_mult = 1, troop_mult = 1 }")
+    harness.write_raw("kr_mod_live.lua", "return { speed = 0, enemy_mult = 1, troop_delta = 0 }")
     assert harness.lua(check) == "false"
-    # bad enemy mult
-    harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 0.4, troop_mult = 1 }")
+    # enemy mult outside the allowed list
+    for bad in ("0.4", "0.5", "1.5", "11", "0", "-1"):
+        harness.write_raw("kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = {bad}, troop_delta = 0 }}")
+        assert harness.lua(check) == "false", bad
+    # troop delta not a whole number in -10..10
+    for bad in ("1.5", "11", "-11", "'2'"):
+        harness.write_raw("kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = 1, troop_delta = {bad} }}")
+        assert harness.lua(check) == "false", bad
+    # the old troop_mult field alone is not enough
+    harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 1, troop_mult = 1 }")
     assert harness.lua(check) == "false"
-    # bad troop mult
-    harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 1, troop_mult = 3.25 }")
-    assert harness.lua(check) == "false"
+    # every allowed value passes
+    for enemy in ("0.25", "1", "2", "10", "10.0000001"):
+        for troop in ("-10", "0", "7", "10"):
+            harness.write_raw(
+                "kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = {enemy}, troop_delta = {troop} }}"
+            )
+            assert harness.lua(check) == "true", (enemy, troop)
     # missing file
     assert harness.lua("""
     local live_mod = dofile(GAME_DIR .. "/mods/kr_mod/live.lua")
@@ -174,7 +186,7 @@ def test_pollers_called_when_live_file_invalid(harness):
       POLLER_COUNT = POLLER_COUNT + 1
     end
     """)
-    harness.write_raw("kr_mod_live.lua", "return { speed = 99, enemy_mult = 1, troop_mult = 1 }")
+    harness.write_raw("kr_mod_live.lua", "return { speed = 99, enemy_mult = 1, troop_delta = 0 }")
     harness.lua("NOW = 1; game:update(0.03)")
     assert harness.lua("return tostring(POLLER_COUNT)") == "1"
 
@@ -192,11 +204,11 @@ def test_speed_click_reapplies_same_speed_after_key(harness):
     harness.lua('game:keypressed("f6")')
     assert harness.lua("return game.DBG_TIME_MULT") == "2"
     # other writes keep the same seq: the key press stays in force
-    harness.write_live(speed=1, enemy_mult=1.5, seq=10)
+    harness.write_live(speed=1, enemy_mult=2.0, seq=10)
     harness.lua("NOW = 2; game:update(0.03)")
     assert harness.lua("return game.DBG_TIME_MULT") == "2"
     # a click on the already highlighted x1 bumps seq and wins over the key press
-    harness.write_live(speed=1, enemy_mult=1.5, seq=11)
+    harness.write_live(speed=1, enemy_mult=2.0, seq=11)
     harness.lua("NOW = 3; game:update(0.03)")
     assert harness.lua("return game.DBG_TIME_MULT") == "1"
     assert harness.lua("return KRMOD.live.speed") == "1"
@@ -209,3 +221,17 @@ def test_file_without_seq_keeps_old_rule(harness):
     harness.write_live(speed=1)
     harness.lua("NOW = 1; game:update(0.03)")
     assert harness.lua("return game.DBG_TIME_MULT") == "2"
+
+
+def test_troop_delta_and_enemy_mult_copied_into_live(harness):
+    setup(harness)
+    assert harness.lua("return KRMOD.live.troop_delta") == "0"
+    harness.write_live(enemy_mult=0.25, troop_delta=-3)
+    harness.lua("NOW = 1; game:update(0.03)")
+    assert harness.lua("return KRMOD.live.troop_delta") == "-3"
+    assert harness.lua("return KRMOD.live.enemy_mult") == "0.25"
+    # an invalid file leaves the last good values in force
+    harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 11, troop_delta = 5 }")
+    harness.lua("NOW = 2; game:update(0.03)")
+    assert harness.lua("return KRMOD.live.troop_delta") == "-3"
+    assert harness.lua("return KRMOD.live.enemy_mult") == "0.25"

@@ -3,34 +3,15 @@ import pytest
 from krmod.model.scaling import (
     PCT_MAX,
     PCT_MIN,
-    c2_range,
     common_pct,
     original_decimals,
-    pct_to_track,
     scale,
-    track_to_pct,
     warn,
 )
 
 
 def test_pct_bounds():
     assert PCT_MIN == 0.0 and PCT_MAX == 500.0
-
-
-@pytest.mark.parametrize("t,p", [(0, 0), (0.25, 50), (0.5, 100), (0.75, 300), (1, 500)])
-def test_track_mapping(t, p):
-    assert track_to_pct(t) == p and pct_to_track(p) == t
-
-
-def test_track_clamping():
-    assert pct_to_track(-10) == 0.0
-    assert pct_to_track(600) == 1.0
-    assert track_to_pct(-0.5) == 0.0
-    assert track_to_pct(1.5) == 500.0
-
-@pytest.mark.parametrize("t", [0.0, 0.1, 0.125, 0.3, 0.5, 0.6, 0.875, 1.0])
-def test_track_round_trip(t):
-    assert pct_to_track(track_to_pct(t)) == pytest.approx(t)
 
 
 @pytest.mark.parametrize(
@@ -87,10 +68,14 @@ def test_common_pct():
     assert common_pct([]) == 100
 
 
-def test_c2_range():
-    assert c2_range([1, 2]) == (0, 10) and c2_range([70, 110]) == (0, 330)
-    assert c2_range([-200, 5]) == (0, 600)
-    assert c2_range([]) == (0, 10)
+def test_common_pct_recovers_percent_when_levels_round_apart():
+    originals = [70, 110, 160, 220]
+    for pct in (51, 101, 7):
+        pairs = [(o, scale(o, pct)) for o in originals]
+        assert common_pct(pairs) == pct
+    # the largest level alone would suggest 50.9, which maps 160 to 81 instead of 82:
+    assert common_pct([(70, 36), (110, 56), (160, 82), (220, 112)]) == 51
+    assert common_pct([(70, 36), (110, 56), (160, 90), (220, 112)]) is None
 
 
 def test_warn():

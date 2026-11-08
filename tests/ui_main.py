@@ -19,6 +19,7 @@ paths = GamePaths.locate()
 # Use isolated test profiles and mods directories:
 _test_profiles = Path(tempfile.mkdtemp(prefix="krmod-ui-test-profiles-"))
 _test_mods = Path(tempfile.mkdtemp(prefix="krmod-ui-test-mods-"))
+_test_repo = Path(tempfile.mkdtemp(prefix="krmod-ui-test-repo-"))  # settings.json lives here
 paths = dataclasses.replace(paths, profiles_dir=_test_profiles, mods_dir=_test_mods)
 
 tree = read_balance(paths)
@@ -26,5 +27,5 @@ index = GroupIndex.build(tree)
 store = ProfileStore(paths.profiles_dir)
 state = AppState(paths, tree, index, store)
 
-build_page(state, None)
+build_page(state, None, repo_dir=_test_repo)
 ui.run()

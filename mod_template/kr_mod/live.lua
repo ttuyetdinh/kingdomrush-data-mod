@@ -1,11 +1,19 @@
 -- KrGenesis live controls: speed hotkeys, badge, and live polling.
 local M = {}
 
-local function is_valid_mult(m)
-  if type(m) ~= "number" then return false end
-  if m < 0.5 or m > 3 then return false end
-  local m4 = m * 4
-  return math.abs(m4 - math.floor(m4 + 0.5)) < 1e-6
+-- The enemy multiplier must be one of 0.25, 1, 2, ..., 10 (small tolerance). Returns the
+-- exact allowed value, or nil.
+local function clean_enemy_mult(m)
+  if type(m) ~= "number" then return nil end
+  if math.abs(m - 0.25) < 1e-6 then return 0.25 end
+  local n = math.floor(m + 0.5)
+  if n >= 1 and n <= 10 and math.abs(m - n) < 1e-6 then return n end
+  return nil
+end
+
+-- Extra soldiers per barracks: a whole number from -10 to 10.
+local function is_valid_troop_delta(d)
+  return type(d) == "number" and d == math.floor(d) and d >= -10 and d <= 10
 end
 
 -- Read and validate mods/kr_mod_live.lua. Returns a clean table or nil.
@@ -22,7 +30,8 @@ function M.read_live(path)
     return nil
   end
 
-  if not is_valid_mult(result.enemy_mult) or not is_valid_mult(result.troop_mult) then
+  local enemy_mult = clean_enemy_mult(result.enemy_mult)
+  if enemy_mult == nil or not is_valid_troop_delta(result.troop_delta) then
     return nil
   end
 
@@ -32,8 +41,8 @@ function M.read_live(path)
   return {
     speed = speed,
     seq = seq,
-    enemy_mult = result.enemy_mult,
-    troop_mult = result.troop_mult,
+    enemy_mult = enemy_mult,
+    troop_delta = result.troop_delta,
   }
 end
 
@@ -44,7 +53,7 @@ function M.poll(K, ctx)
   local path = base .. "/mods/kr_mod_live.lua"
   local live = M.read_live(path)
   if type(K.live) ~= "table" then
-    K.live = { speed = 1, enemy_mult = 1, troop_mult = 1 }
+    K.live = { speed = 1, enemy_mult = 1, troop_delta = 0 }
   end
 
   if live then
@@ -64,7 +73,7 @@ function M.poll(K, ctx)
       K.live.enemy_mult = live.enemy_mult
     end
 
-    K.live.troop_mult = live.troop_mult
+    K.live.troop_delta = live.troop_delta
   end
 
   if type(K.pollers) == "table" then
@@ -91,7 +100,7 @@ function M.install(K, ctx)
   K.ctx = ctx
 
   if type(K.live) ~= "table" then
-    K.live = { speed = 1, enemy_mult = 1, troop_mult = 1 }
+    K.live = { speed = 1, enemy_mult = 1, troop_delta = 0 }
   end
   if type(K.pollers) ~= "table" then
     K.pollers = {}
@@ -105,7 +114,7 @@ function M.install(K, ctx)
   if live then
     K.live.speed = live.speed
     K.live.enemy_mult = live.enemy_mult
-    K.live.troop_mult = live.troop_mult
+    K.live.troop_delta = live.troop_delta
     K.file_speed = live.speed
     K.file_seq = live.seq
     if game then game.DBG_TIME_MULT = live.speed end
