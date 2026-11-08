@@ -11,7 +11,7 @@
 - Verified facts the tests pin: 5,857 numbers, 34 strings, 7 booleans, 1,665 tables, 0 aliased tables; towers.archers.price[1] = 70.
 - Profile stores changes only (path → value). A change equal to its original is removed.
 - Mod launch: Kingdom Rush Genesis.exe -balance_override mods.kr_mod, working directory = game folder.
-- Live controls: speed 1/2/3; enemy_mult and troop_mult from 0.5 to 3 in 0.25 steps. Defaults 1. Speed keys default f5/f6/f7; forbidden keys: f1, f2, f3, space, escape, return, up, down, left, right.
+- Live controls: speed 1/2/3; enemy_mult is one of 0.25, 1, 2, ..., 10 (default 1); troop_delta is a whole number of extra soldiers per barracks from -10 to +10 (default 0; a barracks never goes below 0 soldiers). Speed keys default f5/f6/f7; forbidden keys: f1, f2, f3, space, escape, return, up, down, left, right.
 - C1 slider: 0% to 500%, piecewise with 100% at the centre (left half 0→100, right half 100→500). Skips cells whose original is 0. C2 range: 0 to max(10, 3 × largest absolute original in the row).
 - Rounding: whole-number originals give whole results (round half up, away from zero); decimal originals keep 2 decimals (round half up).
 - Warn (allow, but flag) negative values, and 0 for any key containing cooldown or duration.
@@ -39,9 +39,9 @@ return {
 }
 ```
 
-**mods\kr_mod_live.lua** (written atomically by Task 9, polled by the loader): return { speed = 1, enemy_mult = 1, troop_mult = 1 }, plus an optional seq counter (the app bumps it on every speed button click; the poller re-applies the file's speed whenever seq changes)
+**mods\kr_mod_live.lua** (written atomically by Task 9, polled by the loader): return { speed = 1, enemy_mult = 1.0, troop_delta = 0 }, plus an optional seq counter (the app bumps it on every speed button click; the poller re-applies the file's speed whenever seq changes). The loader ignores the whole file when enemy_mult is not an allowed value or troop_delta is not an integer in -10..10.
 
-**Loader session table:** global KRMOD = { installed = {}, originals = {}, live = { speed = 1, enemy_mult = 1, troop_mult = 1 }, speed_keys = { "f5","f6","f7" }, pollers = {}, enemy_acc = {} (per-stream accumulators keyed by pi|enemy, reset at each level start; ruling on Task 7), data = <last data table>, base = <game dir> }.
+**Loader session table:** global KRMOD = { installed = {}, originals = {}, live = { speed = 1, enemy_mult = 1, troop_delta = 0 }, speed_keys = { "f5","f6","f7" }, pollers = {}, enemy_acc = {} (per-stream accumulators keyed by pi|enemy, reset at each level start; ruling on Task 7), data = <last data table>, base = <game dir> }.
 
 **Loader module shape:** each file in mod_template\kr_mod\ returns a table M. Feature modules expose M.install(K, ctx), where K is KRMOD and ctx = { base = <game dir>, log = function(line) }. install is called at every level start and must guard its own hooks with K.installed.<name>.
 
@@ -51,7 +51,7 @@ return {
 - unlock <label>: removed <n>, kept <m>
 - speed x<n>
 - enemies x<mult>
-- troops x<mult>: <n> barracks
+- troops <+n|-n|0>: <n> barracks
 - error <text>
 
 **Profile JSON** (profiles\<slug>.json; slug = name lowercased, runs of non [a-z0-9] → "-", trimmed):
@@ -60,7 +60,7 @@ return {
 {"version": 1, "name": "Easy mode",
  "changes": [{"path": ["towers", "archers", "price", 1], "value": 7}],
  "rules": {"unlock_tower_levels": false},
- "live": {"speed": 1, "enemy_mult": 1.0, "troop_mult": 1.0},
+ "live": {"speed": 1, "enemy_mult": 1.0, "troop_delta": 0},
  "speed_keys": ["f5", "f6", "f7"]}
 ```
 

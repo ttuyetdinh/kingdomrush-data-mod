@@ -1,4 +1,4 @@
-"""Rules tab view: unlock switch, speed key bindings, mirrored multipliers, and stale changes."""
+"""Rules tab view: unlock switch, speed key bindings, live Enemies and Troops boxes, and stale changes."""
 from __future__ import annotations
 
 from typing import Any, Callable
@@ -8,7 +8,7 @@ from nicegui import ui
 from krmod.model.values import path_str
 from krmod.profiles import FORBIDDEN_KEYS, ProfileError, validate_speed_keys
 from krmod.state import AppState
-from krmod.ui.sliders import live_slider
+from krmod.ui.livebox import LiveBox
 
 
 def render(state: AppState, on_refresh: Callable[[], None]) -> None:
@@ -20,7 +20,7 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
                 "text-2xl font-bold text-slate-900"
             ).mark("rules-title")
             ui.label(
-                "Game-wide rules, hotkeys, and live balance multipliers"
+                "Game-wide rules, hotkeys, and live game controls"
             ).classes("text-sm text-slate-500")
 
         # Section 1: Progression Rules
@@ -98,40 +98,32 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
                         inp.on("blur", validator)
                         inp.on("keydown.enter", validator)
 
-        # Section 3: Mirrored Multipliers
+        # Section 3: Live controls
         with ui.card().classes(
             "w-full p-4 border border-slate-200 shadow-sm rounded-lg gap-4"
         ):
-            ui.label("Live Multipliers").classes(
+            ui.label("Live Controls").classes(
                 "text-base font-semibold text-slate-800"
             )
             ui.label(
-                "Mirrored controls for enemy spawn counts and troop counts (0.5× to 3× in 0.25 steps)."
+                "Mirrors the top bar. Both take effect in the running game right away."
             ).classes("text-xs text-slate-500")
 
             # Enemy multiplier
-            with ui.row().classes("w-full items-center gap-4"):
-                live_slider(
-                    state,
-                    "enemy_mult",
-                    "Enemies",
-                    "rules-enemy-mult",
-                    on_refresh,
-                    wrapper_classes="flex-1",
-                    label_classes="w-28 text-xs font-semibold text-slate-700",
-                )
+            with ui.column().classes("w-full gap-1"):
+                LiveBox(state, "enemy_mult", "rules-enemy-mult", on_refresh)
+                ui.label(
+                    "Multiplies regular enemies: 1 is the default, 0.25 spawns a quarter of "
+                    "them, 10 spawns ten times as many. Bosses always spawn once."
+                ).classes("text-xs text-slate-500")
 
-            # Troop multiplier
-            with ui.row().classes("w-full items-center gap-4"):
-                live_slider(
-                    state,
-                    "troop_mult",
-                    "Troops",
-                    "rules-troop-mult",
-                    on_refresh,
-                    wrapper_classes="flex-1",
-                    label_classes="w-28 text-xs font-semibold text-slate-700",
-                )
+            # Troop count
+            with ui.column().classes("w-full gap-1"):
+                LiveBox(state, "troop_delta", "rules-troop-delta", on_refresh)
+                ui.label(
+                    "Adds or removes soldiers per barracks, from -10 to +10: 0 is the default, "
+                    "+1 is one more, -1 is one fewer. A large minus can leave a barracks empty."
+                ).classes("text-xs text-slate-500")
         # Section 4: Stale Changes (only rendered when non-empty)
         stale_paths = state.stale()
         if stale_paths:

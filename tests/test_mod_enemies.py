@@ -195,3 +195,35 @@ def test_all_zero_command_still_waits(enemy_h):
     spawn(enemy_h, ["a"], 0.5, wait=3.0)
     assert enemy_h.lua("return #SPAWN_CALLS") == "0"
     assert enemy_h.lua("return WAITS[1]") == "3"
+
+
+def test_quarter_over_eight_entries_on_one_stream_spawns_two(enemy_h):
+    assert spawn(enemy_h, ["a"] * 8, 0.25) == "2"
+    assert enemy_h.lua("return LAST_STORE.current_spawn_idx") == "8"
+    # the stream keeps no leftover: 8 x 0.25 is exactly 2
+    assert enemy_h.lua("return tostring(KRMOD.enemy_acc['1|a'])") == "0"
+
+
+def test_quarter_accumulator_carries_across_commands(enemy_h):
+    assert spawn(enemy_h, ["a"] * 3, 0.25) == "0"
+    assert spawn(enemy_h, ["a"] * 3, 0.25, reset_acc=False) == "1"
+
+
+def test_ten_spawns_ten_per_normal_entry_with_spacing(enemy_h):
+    assert spawn(enemy_h, ["a", "b", "a"], 10) == "30"
+    assert enemy_h.lua("return LAST_STORE.current_spawn_idx") == "3"
+    # one wait for the command, then nine extra spacing waits for every entry
+    assert enemy_h.lua("return #WAITS") == str(1 + 3 * 9)
+    assert enemy_h.lua("return WAITS[2]") == "0.25"
+
+
+def test_ten_boss_still_one_and_carrier_scaled(enemy_h):
+    assert spawn(enemy_h, ["boss", "a"], 10) == "11"
+    assert spawn(enemy_h, ["a"], 10, gems_idx=(1,)) == "10"
+    assert enemy_h.lua("return SPAWN_CALLS[1].gems_per_wave") == "100"
+
+
+def test_quarter_boss_and_carrier_never_dropped(enemy_h):
+    assert spawn(enemy_h, ["boss"], 0.25) == "1"
+    assert spawn(enemy_h, ["a"], 0.25, gems_idx=(1,)) == "1"
+    assert enemy_h.lua("return SPAWN_CALLS[1].gems_per_wave") == "2.5"

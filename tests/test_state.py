@@ -79,11 +79,13 @@ def test_locked_level_slider(state):
 
 
 def test_live_writes_file_and_saves(state):
-    state.set_live(speed=3, troop_mult=2)
+    state.set_live(speed=3, troop_delta=2)
     assert "speed = 3" in (state.paths.mods_dir / "kr_mod_live.lua").read_text()
-    assert ProfileStore(state.paths.profiles_dir).active().live.troop_mult == 2
+    assert ProfileStore(state.paths.profiles_dir).active().live.troop_delta == 2
     with pytest.raises(ProfileError):
         state.set_live(enemy_mult=0.6)
+    with pytest.raises(ProfileError):
+        state.set_live(troop_delta=11)
 
 
 def test_profile_switch_isolates_changes(state):
@@ -334,7 +336,7 @@ def test_speed_click_bumps_live_seq_other_edits_keep_it(state):
 
     state.set_live(speed=1)
     first = seq()
-    state.set_live(enemy_mult=1.5)
+    state.set_live(enemy_mult=2.0)
     assert seq() == first
     state.set_live(speed=1)
     assert seq() > first
