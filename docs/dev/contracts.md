@@ -12,7 +12,7 @@
 - Profile stores changes only (path → value). A change equal to its original is removed.
 - Mod launch: Kingdom Rush Genesis.exe -balance_override mods.kr_mod, working directory = game folder.
 - Live controls: speed 1/2/3; enemy_mult and troop_mult from 0.5 to 3 in 0.25 steps. Defaults 1. Speed keys default f5/f6/f7; forbidden keys: f1, f2, f3, space, escape, return, up, down, left, right.
-- C1 slider: 50% to 300%, piecewise (left half 50→100, right half 100→300). Skips cells whose original is 0. C2 range: 0 to max(10, 3 × largest absolute original in the row).
+- C1 slider: 0% to 500%, piecewise with 100% at the centre (left half 0→100, right half 100→500). Skips cells whose original is 0. C2 range: 0 to max(10, 3 × largest absolute original in the row).
 - Rounding: whole-number originals give whole results (round half up, away from zero); decimal originals keep 2 decimals (round half up).
 - Warn (allow, but flag) negative values, and 0 for any key containing cooldown or duration.
 - Window title "KrGenesis Mod". Internal server binds 127.0.0.1 only. Exe: kingdomrush-data-mod\dist\KrGenesisMod\KrGenesisMod.exe.
@@ -39,7 +39,7 @@ return {
 }
 ```
 
-**mods\kr_mod_live.lua** (written atomically by Task 9, polled by the loader): return { speed = 1, enemy_mult = 1, troop_mult = 1 }
+**mods\kr_mod_live.lua** (written atomically by Task 9, polled by the loader): return { speed = 1, enemy_mult = 1, troop_mult = 1 }, plus an optional seq counter (the app bumps it on every speed button click; the poller re-applies the file's speed whenever seq changes)
 
 **Loader session table:** global KRMOD = { installed = {}, originals = {}, live = { speed = 1, enemy_mult = 1, troop_mult = 1 }, speed_keys = { "f5","f6","f7" }, pollers = {}, enemy_acc = {} (per-stream accumulators keyed by pi|enemy, reset at each level start; ruling on Task 7), data = <last data table>, base = <game dir> }.
 
