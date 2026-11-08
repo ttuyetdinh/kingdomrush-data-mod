@@ -283,6 +283,7 @@ def live_slider(
     field: str,
     prefix: str,
     marker: str,
+    on_refresh: Callable[[], None],
     *,
     slider_classes: str = "w-full",
     label_classes: str = "text-xs font-mono whitespace-nowrap",
@@ -312,9 +313,7 @@ def live_slider(
             kwargs = {field: new_val}
             state.set_live(**kwargs)
             label.text = f"{prefix} {new_val:g}x"
-            from krmod.ui import main as ui_main
-
-            ui_main.refresh()
+            on_refresh()
         except ProfileError as exc:
             ui.notify(str(exc), color="negative")
             slider.value = curr

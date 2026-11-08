@@ -21,11 +21,13 @@ class TopBar:
         on_tab_change: Callable[[str], None],
         on_profile_change: Callable[[], None],
         on_game_dir: Callable[[str], Awaitable[bool]],
+        on_refresh: Callable[[], None],
     ) -> None:
         self.state = state
         self.on_tab_change = on_tab_change
         self.on_profile_change = on_profile_change
         self.on_game_dir = on_game_dir
+        self.on_refresh = on_refresh
 
         self.self_check_label: ui.label
         self.warning_chip: ui.chip
@@ -97,6 +99,7 @@ class TopBar:
                         "enemy_mult",
                         "Enemies",
                         "enemy-mult",
+                        self.on_refresh,
                         slider_classes="w-full",
                         wrapper_classes="w-[75px] shrink-0",
                         slider_props="track-color=grey-7",
@@ -110,6 +113,7 @@ class TopBar:
                         "troop_mult",
                         "Troops",
                         "troop-mult",
+                        self.on_refresh,
                         slider_classes="w-full",
                         wrapper_classes="w-[75px] shrink-0",
                         slider_props="track-color=grey-7",
@@ -348,8 +352,6 @@ class TopBar:
         try:
             self.state.set_live(speed=speed)
             self._update_speed_buttons()
-            from krmod.ui import main as ui_main
-
-            ui_main.refresh()
+            self.on_refresh()
         except ProfileError as exc:
             ui.notify(str(exc), color="negative")

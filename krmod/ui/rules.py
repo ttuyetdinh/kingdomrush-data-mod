@@ -1,7 +1,7 @@
 """Rules tab view: unlock switch, speed key bindings, mirrored multipliers, and stale changes."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from nicegui import ui
 
@@ -11,7 +11,7 @@ from krmod.state import AppState
 from krmod.ui.sliders import live_slider
 
 
-def render(state: AppState) -> None:
+def render(state: AppState, on_refresh: Callable[[], None]) -> None:
     """Render Rules tab content in the right editor region."""
     with ui.column().classes("w-full max-w-3xl p-6 gap-6 shrink-0"):
         # Header
@@ -116,6 +116,7 @@ def render(state: AppState) -> None:
                     "enemy_mult",
                     "Enemies",
                     "rules-enemy-mult",
+                    on_refresh,
                     wrapper_classes="flex-1",
                     label_classes="w-28 text-xs font-semibold text-slate-700",
                 )
@@ -127,6 +128,7 @@ def render(state: AppState) -> None:
                     "troop_mult",
                     "Troops",
                     "rules-troop-mult",
+                    on_refresh,
                     wrapper_classes="flex-1",
                     label_classes="w-28 text-xs font-semibold text-slate-700",
                 )

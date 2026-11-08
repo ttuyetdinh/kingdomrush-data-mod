@@ -148,14 +148,23 @@ async def test_profile_error_shown_inline(user):
     # Should see the error inline and not crash:
     await user.should_see("already exists")
 
+async def test_two_pages_render_independently(create_user):
+    # NiceGUI builds one page per client. A click must update the page it came from,
+    # not the page that was built last.
+    first, second = create_user(), create_user()
+    await first.open("/")
+    await second.open("/")
 
-async def test_regions_exposed(user):
+    first.find("Archers").click()
+    await first.should_see(marker="editor-title")
+    await second.should_not_see(marker="editor-title")
+
+    first.find("Enemies").click()
+    await first.should_see("Demon lord")
+    await second.should_see("Archers")
+    await second.should_not_see("Demon lord")
+
+
+async def test_page_built_line_printed(user, capsys):
     await user.open("/")
-    # nicegui drops krmod.ui.main from sys.modules after each simulation; use the live module.
-    from krmod.ui import main as ui_main
-
-    assert isinstance(ui_main.REGIONS, dict)
-    for key in ("left", "right", "bottom", "topbar_right"):
-        assert key in ui_main.REGIONS
-    assert callable(ui_main.show_card)
-    assert callable(ui_main.refresh)
+    assert " page built " in capsys.readouterr().out

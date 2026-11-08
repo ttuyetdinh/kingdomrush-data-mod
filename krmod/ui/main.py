@@ -1,6 +1,7 @@
 """UI shell page builder: window layout, top bar, left cards, right editor and bottom bar."""
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from nicegui import run, ui
@@ -15,76 +16,125 @@ from krmod.ui import applybar, gamefolder, rules, table
 from krmod.ui.cards import CardsColumn
 from krmod.ui.topbar import TopBar
 
-# Public module-level regions dictionary for Tasks 12-13:
-REGIONS: dict[str, ui.element] = {}
-
-# Internal state references:
+# Process-wide state: one AppState serves every page (window or browser tab).
 _active_state: AppState | None = None
 _current_error: str | None = None
 _repo_dir: Path | None = None
-_topbar: TopBar | None = None
-_cards_col: CardsColumn | None = None
-_active_card_id: str | None = None
-_current_tab: str = "Towers"
 
 
-def show_card(card_id: str) -> None:
-    """Open card in right editor region."""
-    global _active_card_id
-    _active_card_id = card_id
+class Shell:
+    """One built page: its regions, top bar, cards column, current tab and open card.
 
-    right = REGIONS.get("right")
-    if right is None or _active_state is None:
-        return
+    NiceGUI builds the page once per client, so every handler has to render into the
+    page that was clicked, never into the page that was built last.
+    """
 
-    card = _active_state.index.card(card_id)
-    right.clear()
-    with right:
-        portrait = portrait_for(card.id, _active_state.paths.portraits_dir)
-        with ui.row().classes("items-center gap-4 mb-4 shrink-0"):
-            if portrait and portrait.is_file():
-                ui.image(str(portrait)).classes("w-14 h-14 rounded-lg shadow-sm")
-            else:
-                with ui.element("div").classes(
-                    "w-14 h-14 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-lg"
-                ):
-                    ui.label(card.title[:2].upper())
-            with ui.column().classes("gap-0.5"):
-                ui.label(card.title).classes("text-2xl font-bold text-slate-900").mark("editor-title")
+    def __init__(self, state: AppState) -> None:
+        self.state = state
+        self.current_tab: str = "Towers"
+        self.active_card_id: str | None = None
+        self.topbar: TopBar
+        self.cards_col: CardsColumn
+        self.left_col: ui.element
+        self.right_col: ui.element
+        self.bottom_bar: ui.element
 
-    table.render_card(_active_state, card_id)
+    def show_card(self, card_id: str) -> None:
+        """Open card in the right editor region."""
+        self.active_card_id = card_id
+        card = self.state.index.card(card_id)
+        self.right_col.clear()
+        with self.right_col:
+            portrait = portrait_for(card.id, self.state.paths.portraits_dir)
+            with ui.row().classes("items-center gap-4 mb-4 shrink-0"):
+                if portrait and portrait.is_file():
+                    ui.image(str(portrait)).classes("w-14 h-14 rounded-lg shadow-sm")
+                else:
+                    with ui.element("div").classes(
+                        "w-14 h-14 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-500 text-lg"
+                    ):
+                        ui.label(card.title[:2].upper())
+                with ui.column().classes("gap-0.5"):
+                    ui.label(card.title).classes("text-2xl font-bold text-slate-900").mark("editor-title")
 
+        table.render_card(self.state, card_id, self.right_col, self.refresh)
 
-def rerender_right() -> None:
-    """Re-render the right editor region: Rules if on Rules tab, else active card or placeholder."""
-    if _active_state is None:
-        return
-    right = REGIONS.get("right")
-    if right is None:
-        return
-    if _current_tab == "Rules":
-        right.clear()
-        with right:
-            rules.render(_active_state)
-    elif _active_card_id is not None:
-        show_card(_active_card_id)
-    else:
-        right.clear()
-        with right:
-            with ui.column().classes("w-full h-full items-center justify-center text-center p-8"):
-                ui.label("Select a unit on the left to edit stats").classes(
-                    "text-slate-400 italic text-base"
-                )
+    def rerender_right(self) -> None:
+        """Re-render the right editor region: Rules if on Rules tab, else active card or placeholder."""
+        if self.current_tab == "Rules":
+            self.right_col.clear()
+            with self.right_col:
+                rules.render(self.state, self.refresh)
+        elif self.active_card_id is not None:
+            self.show_card(self.active_card_id)
+        else:
+            self.right_col.clear()
+            with self.right_col:
+                self._placeholder()
 
+    def refresh(self) -> None:
+        """Update the top bar and cards column after a state mutation."""
+        self.topbar.refresh()
+        self.cards_col.refresh()
+        if self.current_tab == "Rules":
+            self.rerender_right()
 
-def refresh() -> None:
-    """Module-level refresh hook for UI updates after state mutations."""
-    if _topbar is not None:
-        _topbar.refresh()
-    if _cards_col is not None:
-        _cards_col.refresh()
-    if _current_tab == "Rules":
-        rerender_right()
+    def on_tab_change(self, tab: str) -> None:
+        self.current_tab = tab
+        self.cards_col.set_tab(tab)
+        self.rerender_right()
+
+    def on_profile_change(self) -> None:
+        """Profile switched, or all changes reset: re-render the editor unless on Rules."""
+        self.refresh()
+        if self.current_tab != "Rules":
+            self.rerender_right()
+
+    @staticmethod
+    def _placeholder() -> None:
+        with ui.column().classes("w-full h-full items-center justify-center text-center p-8"):
+            ui.label("Select a unit on the left to edit stats").classes(
+                "text-slate-400 italic text-base"
+            )
+
+    def build(self) -> None:
+        ui.colors(
+            primary="#2563eb",
+            secondary="#64748b",
+            accent="#10b981",
+            dark="#0f172a",
+            positive="#16a34a",
+            negative="#dc2626",
+            info="#0284c7",
+            warning="#d97706",
+        )
+        # Style layout containers to prevent whole-page scrolling and enable independent scrolling
+        ui.query("html, body").classes("h-full overflow-hidden").style("height: 100%; overflow: hidden;")
+        ui.query(".q-page-container").classes("h-screen box-border overflow-hidden").style("height: 100vh; box-sizing: border-box; overflow: hidden;")
+        ui.query(".q-page").classes("h-full max-h-full overflow-hidden").style("height: 100%; max-height: 100%; overflow: hidden;")
+        ui.query(".nicegui-content").classes("h-full max-h-full p-0 gap-0 overflow-hidden").style("height: 100%; max-height: 100%; padding: 0; gap: 0; overflow: hidden;")
+
+        self.topbar = TopBar(
+            self.state,
+            on_tab_change=self.on_tab_change,
+            on_profile_change=self.on_profile_change,
+            on_game_dir=use_game_folder,
+            on_refresh=self.refresh,
+        )
+
+        # Main content area (left cards column + right editor column)
+        with ui.element("div").classes("w-full h-full flex flex-row overflow-hidden min-h-0"):
+            self.left_col = ui.column().classes("h-full border-r border-slate-200 bg-slate-50/50 p-0 overflow-hidden shrink-0 min-h-0")
+            with self.left_col:
+                self.cards_col = CardsColumn(self.state, on_card_click=self.show_card)
+
+            self.right_col = ui.column().classes("flex-1 min-w-0 h-full p-6 overflow-y-auto bg-white min-h-0 [&>*]:shrink-0")
+            with self.right_col:
+                self._placeholder()
+
+        self.bottom_bar = ui.footer().classes("w-full items-center justify-between px-6 py-2 border-t border-slate-200 bg-slate-50 text-slate-800 shrink-0")
+        with self.bottom_bar:
+            applybar.render(self.state, self.refresh, self.on_profile_change)
 
 
 async def use_game_folder(text: str) -> bool:
@@ -132,72 +182,11 @@ def _render_error(error_msg: str) -> None:
             gamefolder.render_chooser(str((_repo_dir or default_repo_dir()).parent), use_game_folder)
 
 
-def _render_shell(state: AppState) -> None:
-    global _topbar, _cards_col, _active_state, _current_tab, _active_card_id
-    _active_state = state
-    _current_tab = "Towers"
-    _active_card_id = None
-
-    ui.colors(
-        primary="#2563eb",
-        secondary="#64748b",
-        accent="#10b981",
-        dark="#0f172a",
-        positive="#16a34a",
-        negative="#dc2626",
-        info="#0284c7",
-        warning="#d97706",
-    )
-    # Style layout containers to prevent whole-page scrolling and enable independent scrolling
-    ui.query("html, body").classes("h-full overflow-hidden").style("height: 100%; overflow: hidden;")
-    ui.query(".q-page-container").classes("h-screen box-border overflow-hidden").style("height: 100vh; box-sizing: border-box; overflow: hidden;")
-    ui.query(".q-page").classes("h-full max-h-full overflow-hidden").style("height: 100%; max-height: 100%; overflow: hidden;")
-    ui.query(".nicegui-content").classes("h-full max-h-full p-0 gap-0 overflow-hidden").style("height: 100%; max-height: 100%; padding: 0; gap: 0; overflow: hidden;")
-
-    def on_tab_change(tab: str) -> None:
-        global _current_tab
-        _current_tab = tab
-        if _cards_col is not None:
-            _cards_col.set_tab(tab)
-        rerender_right()
-
-    def on_profile_change() -> None:
-        refresh()
-        if _current_tab != "Rules":
-            rerender_right()
-
-    # Top Bar
-    _topbar = TopBar(state, on_tab_change=on_tab_change, on_profile_change=on_profile_change, on_game_dir=use_game_folder)
-    REGIONS["topbar_right"] = _topbar.topbar_right
-
-    # Main content area (left cards column + right editor column)
-    with ui.element("div").classes("w-full h-full flex flex-row overflow-hidden min-h-0"):
-        # Left column
-        left_col = ui.column().classes("h-full border-r border-slate-200 bg-slate-50/50 p-0 overflow-hidden shrink-0 min-h-0")
-        REGIONS["left"] = left_col
-        with left_col:
-            _cards_col = CardsColumn(state, on_card_click=show_card)
-
-        # Right editor column
-        right_col = ui.column().classes("flex-1 min-w-0 h-full p-6 overflow-y-auto bg-white min-h-0 [&>*]:shrink-0")
-        REGIONS["right"] = right_col
-        with right_col:
-            with ui.column().classes("w-full h-full items-center justify-center text-center p-8"):
-                ui.label("Select a unit on the left to edit stats").classes(
-                    "text-slate-400 italic text-base"
-                )
-    # Bottom bar container
-    bottom_bar = ui.footer().classes("w-full items-center justify-between px-6 py-2 border-t border-slate-200 bg-slate-50 text-slate-800 shrink-0")
-    REGIONS["bottom"] = bottom_bar
-    with bottom_bar:
-        applybar.render(state)
-
-
 def _render_page(state: AppState | None, error: str | None) -> None:
     if error is not None or state is None:
         _render_error(error or "Application state unavailable")
     else:
-        _render_shell(state)
+        Shell(state).build()
 
 
 def build_page(state: AppState | None, error: str | None, repo_dir: Path | None = None) -> None:
@@ -209,4 +198,6 @@ def build_page(state: AppState | None, error: str | None, repo_dir: Path | None 
 
     @ui.page("/")
     def index_page():
+        # In the exe this goes to cache\app.log: one build per connect means a healthy page.
+        print(f"{time.strftime('%H:%M:%S')} page built {ui.context.client.id}")
         _render_page(_active_state, _current_error)

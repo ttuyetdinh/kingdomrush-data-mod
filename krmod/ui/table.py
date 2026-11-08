@@ -126,13 +126,11 @@ def friendly_group_label(group: str) -> str:
     return " / ".join(parts) if len(parts) > 1 else parts[0]
 
 
-def render_card(state: AppState, card_id: str) -> None:
-    """Render card's C1 card sliders, level table, row sliders, and C2 panels."""
-    from krmod.ui import main as ui_main
+def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Callable[[], None]) -> None:
+    """Render card's C1 card sliders, level table, row sliders, and C2 panels into right.
 
-    right = ui_main.REGIONS.get("right")
-    if right is None:
-        return
+    on_refresh updates the page chrome (top bar, cards column) after an edit.
+    """
 
     rows = state.rows(card_id)
     max_levels = max((len(r.cells) for r in rows), default=1)
@@ -149,7 +147,7 @@ def render_card(state: AppState, card_id: str) -> None:
         card_sliders.refresh()
         for p in c2_panels:
             p.refresh()
-        ui_main.refresh()
+        on_refresh()
 
     with right:
         card_sliders = CardSliders(state, card_id, on_change=on_mutation)

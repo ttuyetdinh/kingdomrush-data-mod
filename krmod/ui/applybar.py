@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from typing import Callable
 
 from nicegui import ui
 
@@ -13,8 +14,8 @@ POLL_INTERVAL_S: float = 1.0
 POLL_TIMEOUT_S: float = 120.0
 
 
-def render(state: AppState) -> None:
-    """Render the bottom action bar."""
+def render(state: AppState, on_refresh: Callable[[], None], on_reset: Callable[[], None]) -> None:
+    """Render the bottom action bar. on_refresh updates the page after a write; on_reset after Reset all."""
     watcher: LogWatcher | None = None
     poll_timer: ui.timer | None = None
     last_outcome: RunOutcome | None = None
@@ -34,11 +35,7 @@ def render(state: AppState) -> None:
             def do_reset() -> None:
                 state.reset_all()
                 reset_dialog.close()
-                from krmod.ui import main as ui_main
-
-                ui_main.refresh()
-                if ui_main._current_tab != "Rules":
-                    ui_main.rerender_right()
+                on_reset()
                 ui.notify("All changes reset", color="info")
 
             ui.button("Reset", on_click=do_reset).props(
@@ -158,9 +155,7 @@ def render(state: AppState) -> None:
             ui.notify(msg, color="info")
         else:
             ui.notify(f"Mod written: {res.applied} changes", color="positive")
-        from krmod.ui import main as ui_main
-
-        ui_main.refresh()
+        on_refresh()
         start_polling()
 
     def on_apply_and_run() -> None:
@@ -173,9 +168,7 @@ def render(state: AppState) -> None:
         watcher.mark()
         outcome, res = state.apply_and_run()
         last_outcome = outcome
-        from krmod.ui import main as ui_main
-
-        ui_main.refresh()
+        on_refresh()
 
         if outcome == RunOutcome.UPDATED_RUNNING:
             msg = "Game is running: changes apply at the next level start"
