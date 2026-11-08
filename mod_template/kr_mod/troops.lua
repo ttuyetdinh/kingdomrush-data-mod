@@ -7,10 +7,10 @@ local last_mult = nil
 
 local function write_log(K, line)
   local log_fn
-  if current_ctx and type(current_ctx.log) == "function" then
-    log_fn = current_ctx.log
-  elseif type(K) == "table" and K._troops_ctx and type(K._troops_ctx.log) == "function" then
+  if type(K) == "table" and K._troops_ctx and type(K._troops_ctx.log) == "function" then
     log_fn = K._troops_ctx.log
+  elseif current_ctx and type(current_ctx.log) == "function" then
+    log_fn = current_ctx.log
   end
   if log_fn then
     pcall(log_fn, line)
@@ -123,6 +123,55 @@ function M.apply_all(K)
   return count
 end
 
+-- The stage 11 camp tower's insert script writes the vanilla per-level soldier count
+-- into every personal camp barrack. When that value equals the one this module applied
+-- at the previous level, apply_barrack cannot tell it is a game rewrite and would keep
+-- the old scaled number. So wrap the insert: after the original runs, forget the applied
+-- marker on those barracks and apply the current multiplier right away.
+local function camp_cleanup(K, this, store)
+  if type(this) ~= "table" or type(store) ~= "table" or type(store.entities) ~= "table" then
+    return
+  end
+  local mult = 1
+  if type(K) == "table" and type(K.live) == "table" and type(K.live.troop_mult) == "number" then
+    mult = K.live.troop_mult
+  end
+  for _, e in pairs(store.entities) do
+    if type(e) == "table" and e.template_name == this.barracks_t and type(e.barrack) == "table" then
+      e.barrack._kr_applied = nil
+      e.barrack._kr_applied_t = nil
+      M.apply_barrack(e.barrack, mult)
+    end
+  end
+end
+
+-- Wrap scripts.tower_stage_11_camp.insert once. K._troops_wrapped (weak keys, kept in
+-- the persistent KRMOD table) remembers our wrappers across level reloads.
+local function wrap_camp_insert(K)
+  local scripts = package.loaded["scripts_game"]
+  local camp = type(scripts) == "table" and scripts.tower_stage_11_camp or nil
+  if type(camp) ~= "table" or type(camp.insert) ~= "function" then
+    write_log(K, "error troops: stage 11 camp hook not found")
+    return
+  end
+  if type(K._troops_wrapped) ~= "table" then
+    K._troops_wrapped = setmetatable({}, { __mode = "k" })
+  end
+  local original = camp.insert
+  if K._troops_wrapped[original] then return end
+
+  local function finish(this, store, ...)
+    local ok, err = pcall(camp_cleanup, K, this, store)
+    if not ok then write_log(K, "error troops camp: " .. tostring(err)) end
+    return ...
+  end
+  local function wrapper(this, store, ...)
+    return finish(this, store, original(this, store, ...))
+  end
+  K._troops_wrapped[wrapper] = true
+  camp.insert = wrapper
+end
+
 -- Install module hooks and register poller.
 function M.install(K, ctx)
   current_ctx = ctx
@@ -134,6 +183,8 @@ function M.install(K, ctx)
     K._troops_last_mult = nil
     K.pollers = K.pollers or {}
     K.pollers.troops = M.apply_all
+    local ok, err = pcall(wrap_camp_insert, K)
+    if not ok then write_log(K, "error troops: " .. tostring(err)) end
   end
 end
 

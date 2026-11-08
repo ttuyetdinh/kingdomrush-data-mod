@@ -144,3 +144,91 @@ def test_apply_all_error_logged_and_continues(troop_h):
     assert "error troops: " in log
     assert "boom" in log
     assert "troops x2: 1 barracks" in log
+
+
+# Hand-built stand-in for the stage 11 camp tower: its insert writes the vanilla
+# per-level soldier count (1, 2, 2) into every personal camp barrack.
+CAMP_SETUP = """
+CAMP_CALLS = 0
+package.loaded['scripts_game'].tower_stage_11_camp.insert = function(this, store)
+  CAMP_CALLS = CAMP_CALLS + 1
+  for _, e in pairs(store.entities) do
+    if e.template_name == this.barracks_t then
+      e.barrack.max_soldiers = this.barracks_soldiers[this.tower.level]
+    end
+  end
+  return true, 'second'
+end
+"""
+
+CAMP_ENTITIES = """
+game.store.entities = {
+  [1] = { template_name = 'camp_barrack', barrack = { max_soldiers = 1 } },
+  [2] = { template_name = 'camp_barrack', barrack = { max_soldiers = 1 } },
+  [3] = { template_name = 'other_barrack', barrack = { max_soldiers = 5 } },
+}
+CAMP = { barracks_t = 'camp_barrack', barracks_soldiers = { 1, 2, 2 }, tower = { level = 1 } }
+function camp_level(n)
+  CAMP.tower.level = n
+  r1, r2 = package.loaded['scripts_game'].tower_stage_11_camp.insert(CAMP, game.store)
+  KRMOD.pollers.troops(KRMOD)
+  return game.store.entities[1].barrack.max_soldiers .. ',' .. game.store.entities[2].barrack.max_soldiers
+end
+"""
+
+
+@pytest.fixture
+def camp_h(troop_h):
+    troop_h.lua(CAMP_SETUP)
+    troop_h.run_level()
+    troop_h.lua(CAMP_ENTITIES)
+    return troop_h
+
+
+@pytest.mark.parametrize("mult,out", [(1.5, 3), (2, 4), (2.25, 5), (3, 6)])
+def test_camp_level2_upgrade(camp_h, mult, out):
+    camp_h.lua(f"KRMOD.live.troop_mult = {mult}")
+    camp_h.lua("camp_level(1)")
+    assert camp_h.lua("return camp_level(2)") == f"{out},{out}"
+
+
+def test_camp_upgrade_sequence_at_x2(camp_h):
+    camp_h.lua("KRMOD.live.troop_mult = 2")
+    assert camp_h.lua("return camp_level(1)") == "2,2"
+    assert camp_h.lua("return camp_level(2)") == "4,4"
+    assert camp_h.lua("KRMOD.pollers.troops(KRMOD); return camp_level(2)") == "4,4"
+    camp_h.lua("KRMOD.live.troop_mult = 1; KRMOD.pollers.troops(KRMOD)")
+    assert camp_h.lua("return game.store.entities[1].barrack.max_soldiers") == "2"
+    assert camp_h.lua("return camp_level(3)") == "2,2"
+    # a barracks that is not the camp's own is left to the generic poller
+    assert camp_h.lua("return game.store.entities[3].barrack.max_soldiers") == "5"
+
+
+def test_camp_wrap_is_idempotent_and_keeps_results(camp_h):
+    camp_h.run_level()
+    camp_h.run_level()
+    camp_h.lua(CAMP_ENTITIES)
+    camp_h.lua("KRMOD.live.troop_mult = 2; camp_level(1)")
+    assert camp_h.lua("return CAMP_CALLS") == "1"
+    assert camp_h.lua("return tostring(r1) .. ',' .. tostring(r2)") == "true,second"
+    assert camp_h.lua("return camp_level(2)") == "4,4"
+    assert camp_h.lua("return CAMP_CALLS") == "2"
+
+
+def test_camp_cleanup_error_logged_original_result_kept(camp_h):
+    camp_h.lua(
+        """KRMOD.live.troop_mult = 2
+      game.store.entities[1].barrack = setmetatable({ max_soldiers = 1 },
+        { __newindex = function() error('boom') end })
+      camp_level(1)"""
+    )
+    assert camp_h.lua("return tostring(r1)") == "true"
+    log = camp_h.log()
+    assert "error troops camp: " in log
+    assert "boom" in log
+
+
+def test_camp_hook_missing_logged(troop_h):
+    troop_h.lua("package.loaded['scripts_game'] = nil")
+    troop_h.run_level()
+    assert "error troops: stage 11 camp hook not found" in troop_h.log()

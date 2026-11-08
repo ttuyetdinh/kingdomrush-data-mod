@@ -61,6 +61,7 @@ end
 package.preload["utils"] = function()
   return { y_wait = function(store, t) table.insert(WAITS, t) end }
 end
+package.loaded["scripts_game"] = { tower_stage_11_camp = { insert = function(this, store) return true end } }
 """
 
 
