@@ -94,7 +94,7 @@ The code in this repository is released under the MIT License below. The license
 ```text
 MIT License
 
-Copyright (c) 2026 Nguyen Minh Phuc
+Copyright (c) 2026 ttuyetdinh
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
