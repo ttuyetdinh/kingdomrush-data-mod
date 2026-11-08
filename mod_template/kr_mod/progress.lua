@@ -52,23 +52,31 @@ function M.apply_points(K, GS, rules, log)
   end
 end
 
+-- Replace tbl[method] with make(original) once. The wrapper is remembered in K[slot], so a
+-- later run finds it in place and does nothing; when the game reloads the screen and tbl
+-- holds a new function, that one is wrapped. Returns false when tbl[method] is missing.
+local function wrap_once(K, slot, tbl, method, make)
+  if type(tbl) ~= "table" or type(tbl[method]) ~= "function" then return false end
+  if tbl[method] == K[slot] then return true end
+  K[slot] = make(tbl[method])
+  tbl[method] = K[slot]
+  return true
+end
+
 -- The spell room has no point table: PowerRoomView:get_unit_stats(name) returns the spell's
 -- remaining_points (spell level - 1 - spent). The wrapper adds get_extra() to it, so the room,
--- its point label and its skill tree all see the extra. Wraps each function once; returns
--- false when the spell room is not loaded.
+-- its point label and its skill tree all see the extra. Returns false when the spell room is
+-- not loaded.
 function M.install_spell_points(K, view, get_extra)
-  if type(view) ~= "table" or type(view.get_unit_stats) ~= "function" then return false end
-  if view.get_unit_stats == K.spell_points_wrapper then return true end
-  local original = view.get_unit_stats
-  K.spell_points_wrapper = function(...)
-    local out = original(...)
-    if type(out) == "table" and type(out.remaining_points) == "number" then
-      out.remaining_points = out.remaining_points + whole(get_extra())
+  return wrap_once(K, "spell_points_wrapper", view, "get_unit_stats", function(original)
+    return function(...)
+      local out = original(...)
+      if type(out) == "table" and type(out.remaining_points) == "number" then
+        out.remaining_points = out.remaining_points + whole(get_extra())
+      end
+      return out
     end
-    return out
-  end
-  view.get_unit_stats = K.spell_points_wrapper
-  return true
+  end)
 end
 
 -- Content names of the star check, by rule: "hero_<name>", "tower_<name>", "power_<name>".
@@ -89,20 +97,14 @@ end
 
 -- screen_map:is_content_stage_unlocked(name, user_data) is the star check of the hero,
 -- tower and spell rooms. Names for which M.passes(get_rules(), name) is true are unlocked;
--- everything else keeps the game's check. Wraps each screen_map function once; returns
--- false when the map screen is not loaded.
+-- everything else keeps the game's check. Returns false when the map screen is not loaded.
 function M.install_star_unlocks(K, map, get_rules)
-  if type(map) ~= "table" or type(map.is_content_stage_unlocked) ~= "function" then
-    return false
-  end
-  if map.is_content_stage_unlocked == K.star_wrapper then return true end
-  local original = map.is_content_stage_unlocked
-  K.star_wrapper = function(self, name, ...)
-    if M.passes(get_rules(), name) then return true end
-    return original(self, name, ...)
-  end
-  map.is_content_stage_unlocked = K.star_wrapper
-  return true
+  return wrap_once(K, "star_wrapper", map, "is_content_stage_unlocked", function(original)
+    return function(self, name, ...)
+      if M.passes(get_rules(), name) then return true end
+      return original(self, name, ...)
+    end
+  end)
 end
 
 -- Every skill tree (hero, tower and spell rooms and the Upgrades screen) is evaluated by
@@ -110,31 +112,28 @@ end
 -- side not taken in result.block_buttons, and buying it swaps the sides. While is_enabled()
 -- is true those nodes become normal nodes: buyable when the points cover their cost, else
 -- shown as too expensive. Their children open once they are bought, like any other node.
--- Wraps each class function once; returns false when the skill trees are not loaded.
+-- Returns false when the skill trees are not loaded.
 function M.install_both_paths(K, graph_class, is_enabled)
-  if type(graph_class) ~= "table" or type(graph_class.evaluate) ~= "function" then return false end
-  if graph_class.evaluate == K.both_paths_wrapper then return true end
-  local original = graph_class.evaluate
-  K.both_paths_wrapper = function(self, source, remaining_points, ...)
-    local result = original(self, source, remaining_points, ...)
-    if not is_enabled() or type(result) ~= "table" or type(result.block_buttons) ~= "table" then
+  return wrap_once(K, "both_paths_wrapper", graph_class, "evaluate", function(original)
+    return function(self, source, remaining_points, ...)
+      local result = original(self, source, remaining_points, ...)
+      if not is_enabled() or type(result) ~= "table" or type(result.block_buttons) ~= "table" then
+        return result
+      end
+      local nodes = type(self.graph) == "table" and self.graph[source] or {}
+      for node_id in pairs(result.block_buttons) do
+        local cost = type(nodes[node_id]) == "table" and tonumber(nodes[node_id].cost)
+        if cost and type(remaining_points) == "number" and cost <= remaining_points then
+          result.enable_buttons[node_id] = true
+          table.insert(result.available_nodes, node_id)
+        else
+          result.unavailable_buttons[node_id] = true
+        end
+      end
+      result.block_buttons = {}
       return result
     end
-    local nodes = type(self.graph) == "table" and self.graph[source] or {}
-    for node_id in pairs(result.block_buttons) do
-      local cost = type(nodes[node_id]) == "table" and tonumber(nodes[node_id].cost)
-      if cost and type(remaining_points) == "number" and cost <= remaining_points then
-        result.enable_buttons[node_id] = true
-        table.insert(result.available_nodes, node_id)
-      else
-        result.unavailable_buttons[node_id] = true
-      end
-    end
-    result.block_buttons = {}
-    return result
-  end
-  graph_class.evaluate = K.both_paths_wrapper
-  return true
+  end)
 end
 
 return M
