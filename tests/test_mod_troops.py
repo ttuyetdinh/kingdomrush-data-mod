@@ -70,6 +70,19 @@ def test_per_level_table(troop_h):
     assert troop_h.lua("return table.concat(B.max_soldiers, ',')") == "2,3,4"
 
 
+def test_zero_base_stays_zero(troop_h):
+    troop_h.lua("B = { max_soldiers = 0 }; T.apply_barrack(B, 2)")
+    assert troop_h.lua("return B.max_soldiers") == "0"
+    troop_h.lua("T.apply_barrack(B, -3)")
+    assert troop_h.lua("return B.max_soldiers") == "0"
+    troop_h.lua("L = { max_soldiers = { 0, 3, 3 } }; T.apply_barrack(L, 2)")
+    assert troop_h.lua("return table.concat(L.max_soldiers, ',')") == "0,5,5"
+    troop_h.lua("T.apply_barrack(L, -1)")
+    assert troop_h.lua("return table.concat(L.max_soldiers, ',')") == "0,2,2"
+    troop_h.lua("T.apply_barrack(L, 0)")
+    assert troop_h.lua("return table.concat(L.max_soldiers, ',')") == "0,3,3"
+
+
 def test_templates_and_live_entities(troop_h):
     troop_h.lua(
         """local E = require('entity_db'); E.entities.knights = { barrack = { max_soldiers = 3 } }

@@ -17,9 +17,15 @@ local function write_log(K, line)
   end
 end
 
--- Add delta soldiers to a barrack table: target = max(0, base + delta).
--- A minus larger than the base leaves 0 soldiers.
--- Returns changed: boolean.
+-- Target soldiers for a base and delta: max(0, base + delta). A base of 0 means "no soldiers
+-- here" (e.g. at this level) and stays 0 for any delta. A minus larger than the base gives 0.
+local function target(base, delta)
+  if base <= 0 then return base end
+  return math.max(0, base + delta)
+end
+
+-- Add delta soldiers to a barrack table (see target). Returns changed: boolean.
+-- A barracks (or per-level entry) with base 0 stays 0.
 function M.apply_barrack(b, delta)
   if type(b) ~= "table" or type(delta) ~= "number" then return false end
   local changed = false
@@ -29,7 +35,7 @@ function M.apply_barrack(b, delta)
       b._kr_base = b.max_soldiers
     end
     if type(b._kr_base) == "number" then
-      local want = math.max(0, b._kr_base + delta)
+      local want = target(b._kr_base, delta)
       if b.max_soldiers ~= want then
         changed = true
       end
@@ -46,7 +52,7 @@ function M.apply_barrack(b, delta)
         end
         local base = b._kr_base_t[i]
         if type(base) == "number" then
-          local want = math.max(0, base + delta)
+          local want = target(base, delta)
           if b.max_soldiers[i] ~= want then
             changed = true
           end
