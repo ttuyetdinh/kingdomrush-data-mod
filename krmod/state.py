@@ -7,7 +7,7 @@ from typing import Sequence
 from krmod.model.categories import CATEGORY_NAMES, category_of
 from krmod.model.grouping import GroupIndex
 from krmod.model.rows import StatRow, build_rows
-from krmod.model.scaling import c2_range, common_pct, scale, warn
+from krmod.model.scaling import common_pct, scale, warn
 from krmod.model.stepping import parse_number
 from krmod.model.values import BalanceTree, KeyPath, Leaf, path_str
 from krmod.modgen.launcher import RunOutcome, apply_and_run
@@ -179,30 +179,6 @@ class AppState:
             return None
         pairs = [(self.original(p), self.current(p)) for p in paths]
         return common_pct(pairs)
-
-    def set_level(
-        self, path: KeyPath, value: float, locked_row: StatRow | None = None
-    ) -> str | None:
-        self._validate_editable(path, value)
-        orig = self.original(path)
-        if locked_row is None or orig == 0:
-            return self.set_value(path, value)
-
-        ratio = float(value) / orig
-        pct = ratio * 100.0
-        cells = self._eligible_row_cells(locked_row)
-        self._apply_pct(cells, pct)
-        if float(value) == orig:
-            return None
-        return warn(path, float(value))
-
-    def c2_range(self, row: StatRow) -> tuple[float, float]:
-        originals = [
-            self.original(p)
-            for p in row.cells
-            if p is not None and p in self.tree.leaves
-        ]
-        return c2_range(originals)
 
     def set_live(
         self,
