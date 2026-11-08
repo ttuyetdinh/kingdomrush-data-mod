@@ -9,7 +9,13 @@ from nicegui import run, ui
 from krmod.assets.portraits import portrait_for
 from krmod.gamedata.reader import ReaderError
 from krmod.gameload import open_game_dir
-from krmod.paths import GameNotFoundError, default_repo_dir, save_game_dir_setting
+from krmod.paths import (
+    GameNotFoundError,
+    default_repo_dir,
+    load_cards_folded,
+    save_cards_folded,
+    save_game_dir_setting,
+)
 from krmod.profiles import ProfileStore
 from krmod.state import AppState
 from krmod.ui import applybar, gamefolder, rules, table
@@ -122,11 +128,19 @@ class Shell:
             on_refresh=self.refresh,
         )
 
-        # Main content area (left cards column + right editor column)
+        # Main content area (left cards column + right editor column). Only the editor scrolls:
+        # the top bar above and the bottom bar below stay in view on a short window.
         with ui.element("div").classes("w-full h-full flex flex-row overflow-hidden min-h-0"):
-            self.left_col = ui.column().classes("h-full border-r border-slate-200 bg-slate-50/50 p-0 overflow-hidden shrink-0 min-h-0")
+            self.left_col = ui.column().classes(
+                "h-full border-r border-slate-200 bg-slate-50/50 p-0 gap-0 overflow-hidden shrink-0 min-h-0"
+            )
             with self.left_col:
-                self.cards_col = CardsColumn(self.state, on_card_click=self.show_card)
+                self.cards_col = CardsColumn(
+                    self.state,
+                    on_card_click=self.show_card,
+                    folded=load_cards_folded(_repo_dir or default_repo_dir()),
+                    on_fold_change=self._save_cards_folded,
+                )
 
             self.right_col = ui.column().classes("flex-1 min-w-0 h-full p-6 overflow-y-auto bg-white min-h-0 [&>*]:shrink-0")
             with self.right_col:
@@ -135,6 +149,13 @@ class Shell:
         self.bottom_bar = ui.footer().classes("w-full items-center justify-between px-6 py-2 border-t border-slate-200 bg-slate-50 text-slate-800 shrink-0")
         with self.bottom_bar:
             applybar.render(self.state, self.refresh, self.on_profile_change)
+
+    @staticmethod
+    def _save_cards_folded(folded: bool) -> None:
+        try:
+            save_cards_folded(_repo_dir or default_repo_dir(), folded)
+        except OSError as exc:
+            ui.notify(f"Could not save the card list state: {exc}", color="negative")
 
 
 async def use_game_folder(text: str) -> bool:
