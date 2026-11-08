@@ -94,8 +94,10 @@ class ModHarness:
         }
         self.write_raw("kr_mod_data.lua", "return " + to_lua(data) + "\n")
 
-    def write_live(self, speed=1, enemy_mult=1.0, troop_mult=1.0) -> None:
+    def write_live(self, speed=1, enemy_mult=1.0, troop_mult=1.0, seq=None) -> None:
         live = {"speed": speed, "enemy_mult": enemy_mult, "troop_mult": troop_mult}
+        if seq is not None:
+            live["seq"] = seq
         self.write_raw("kr_mod_live.lua", "return " + to_lua(live) + "\n")
 
     def lua(self, code: str) -> str | None:

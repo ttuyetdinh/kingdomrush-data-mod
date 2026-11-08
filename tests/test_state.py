@@ -324,3 +324,17 @@ def test_scale_row_at_zero_sets_zero_and_back_to_100_leaves_no_changes(state):
     for p in row.cells:
         assert state.current(p) == state.original(p)
     assert state.change_count() == 0
+
+
+def test_speed_click_bumps_live_seq_other_edits_keep_it(state):
+    live_file = state.paths.mods_dir / "kr_mod_live.lua"
+
+    def seq():
+        return int(live_file.read_text().split("seq = ")[1].split(" ")[0])
+
+    state.set_live(speed=1)
+    first = seq()
+    state.set_live(enemy_mult=1.5)
+    assert seq() == first
+    state.set_live(speed=1)
+    assert seq() > first

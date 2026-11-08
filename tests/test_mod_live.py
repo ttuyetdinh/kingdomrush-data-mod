@@ -183,3 +183,29 @@ def test_badge_centered_without_getfont(harness):
     setup(harness, speed=2)
     harness.lua("love.graphics.getFont = nil; game:draw()")
     assert harness.lua("return tostring(LAST_PRINT_X)") == "940"
+
+
+def test_speed_click_reapplies_same_speed_after_key(harness):
+    setup(harness)
+    harness.write_live(speed=1, seq=10)
+    harness.lua("NOW = 1; game:update(0.03)")
+    harness.lua('game:keypressed("f6")')
+    assert harness.lua("return game.DBG_TIME_MULT") == "2"
+    # other writes keep the same seq: the key press stays in force
+    harness.write_live(speed=1, enemy_mult=1.5, seq=10)
+    harness.lua("NOW = 2; game:update(0.03)")
+    assert harness.lua("return game.DBG_TIME_MULT") == "2"
+    # a click on the already highlighted x1 bumps seq and wins over the key press
+    harness.write_live(speed=1, enemy_mult=1.5, seq=11)
+    harness.lua("NOW = 3; game:update(0.03)")
+    assert harness.lua("return game.DBG_TIME_MULT") == "1"
+    assert harness.lua("return KRMOD.live.speed") == "1"
+    assert "speed x1" in harness.log()
+
+
+def test_file_without_seq_keeps_old_rule(harness):
+    setup(harness)
+    harness.lua('game:keypressed("f6")')
+    harness.write_live(speed=1)
+    harness.lua("NOW = 1; game:update(0.03)")
+    assert harness.lua("return game.DBG_TIME_MULT") == "2"

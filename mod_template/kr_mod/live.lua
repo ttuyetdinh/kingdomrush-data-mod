@@ -26,8 +26,12 @@ function M.read_live(path)
     return nil
   end
 
+  local seq = result.seq
+  if type(seq) ~= "number" then seq = nil end
+
   return {
     speed = speed,
+    seq = seq,
     enemy_mult = result.enemy_mult,
     troop_mult = result.troop_mult,
   }
@@ -44,7 +48,11 @@ function M.poll(K, ctx)
   end
 
   if live then
-    if live.speed ~= K.file_speed then
+    -- The app bumps seq on every speed button click, so a click re-applies the file's
+    -- speed even when it equals the last file speed (e.g. after an in-game speed key).
+    local clicked = live.seq ~= nil and live.seq ~= K.file_seq
+    K.file_seq = live.seq
+    if live.speed ~= K.file_speed or clicked then
       K.file_speed = live.speed
       K.live.speed = live.speed
       if game then game.DBG_TIME_MULT = live.speed end
@@ -99,6 +107,7 @@ function M.install(K, ctx)
     K.live.enemy_mult = live.enemy_mult
     K.live.troop_mult = live.troop_mult
     K.file_speed = live.speed
+    K.file_seq = live.seq
     if game then game.DBG_TIME_MULT = live.speed end
   else
     K.file_speed = K.live.speed or 1

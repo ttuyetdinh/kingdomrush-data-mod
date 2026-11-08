@@ -233,7 +233,7 @@ class AppState:
         test_live.validate()
         self.profile.live = test_live
         self.store.save(self.profile)
-        write_live(self.paths, self.profile.live)
+        write_live(self.paths, self.profile.live, bump_seq=speed is not None)
 
     def set_unlock(self, on: bool) -> None:
         self.profile.unlock_tower_levels = bool(on)

@@ -165,3 +165,17 @@ def test_apply_mod_copies_dynamically_added_template_modules(tmp_game, tree, tmp
     assert "kr_mod/live.lua" in rel_names
     assert "kr_mod/nested/extra.lua" in rel_names
     assert (game.mods_dir / "kr_mod" / "nested" / "extra.lua").read_text() == "-- extra\n"
+
+
+def test_live_seq_only_bumps_on_request(tmp_game):
+    live_file = tmp_game.mods_dir / "kr_mod_live.lua"
+    write_live(tmp_game, LiveSettings(1, 1.0, 1.0))
+    assert "seq" not in live_file.read_text()
+
+    write_live(tmp_game, LiveSettings(1, 1.0, 1.0), bump_seq=True)
+    first = int(live_file.read_text().split("seq = ")[1].split(" ")[0])
+    write_live(tmp_game, LiveSettings(1, 2.0, 1.0))
+    assert f"seq = {first} " in live_file.read_text()
+    write_live(tmp_game, LiveSettings(1, 2.0, 1.0), bump_seq=True)
+    second = int(live_file.read_text().split("seq = ")[1].split(" ")[0])
+    assert second > first

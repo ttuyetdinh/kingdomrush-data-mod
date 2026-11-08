@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 import tempfile
 import time
 
@@ -92,14 +93,34 @@ def data_table(profile: Profile, tree: BalanceTree) -> dict:
     }
 
 
-def write_live(paths: GamePaths, live: LiveSettings) -> None:
+_SEQ_RE = re.compile(r"\bseq = (\d+)")
+
+
+def _existing_seq(path: Path) -> int | None:
+    try:
+        match = _SEQ_RE.search(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+    return int(match.group(1)) if match else None
+
+
+def write_live(paths: GamePaths, live: LiveSettings, *, bump_seq: bool = False) -> None:
+    """Write kr_mod_live.lua. The file carries a seq counter that the in-game poller watches:
+    bump_seq (a speed button click) makes the game apply the file's speed again even when it
+    equals the previous one; any other write keeps the counter it finds.
+    """
     live.validate()
+    path = paths.mods_dir / "kr_mod_live.lua"
+    seq = _existing_seq(path)
+    if bump_seq:
+        seq = max((seq or 0) + 1, time.time_ns() // 1_000_000)
+    seq_field = "" if seq is None else f", seq = {seq}"
     text = (
         f"return {{ speed = {live.speed}, "
         f"enemy_mult = {float(live.enemy_mult)!r}, "
-        f"troop_mult = {float(live.troop_mult)!r} }}\n"
+        f"troop_mult = {float(live.troop_mult)!r}{seq_field} }}\n"
     )
-    atomic_write(paths.mods_dir / "kr_mod_live.lua", text)
+    atomic_write(path, text)
 
 
 @dataclass(frozen=True)
