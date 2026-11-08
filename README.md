@@ -2,6 +2,8 @@
 
 KrGenesis Mod is a desktop editor and live tuning tool for Kingdom Rush Genesis. It lets you customize unit balance values, tower progression rules, and real-time game multipliers, delivering your custom configurations via a safe Lua mod loader.
 
+> **Disclaimer:** This is an unofficial fan project made for personal fun and single-player play only. It is not affiliated with, endorsed by, or supported by Ironhide Game Studio, the makers of Kingdom Rush. Kingdom Rush and all game content belong to their owners. This repository contains no game files, art, or game code; you need your own copy of the game. Use it at your own risk: back up your save before trying it.
+
 ## Key Features
 
 - Safe and non-invasive: The application never modifies Kingdom Rush Genesis.exe or any original game file. Launching the game normally always runs the unmodified vanilla game.
@@ -84,3 +86,31 @@ mods\launch_modded.bat
 ```
 
 This runs Kingdom Rush Genesis with the modded balance override using the most recently applied settings. A standard game launch without this batch script remains completely vanilla.
+
+## License
+
+The code in this repository is released under the MIT License below. The license covers only this project's own code; it grants no rights to Kingdom Rush or any of its content.
+
+```text
+MIT License
+
+Copyright (c) 2026 ttuyetdinh
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
