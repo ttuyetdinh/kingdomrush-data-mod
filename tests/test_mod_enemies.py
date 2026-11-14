@@ -90,7 +90,7 @@ def test_double(enemy_h):
     assert spawn(enemy_h, ["a", "b"], 2, spi="2") == "4"
     assert enemy_h.lua("return LAST_STORE.current_spawn_idx") == "2"
     # each copy walks beside its original: no extra waits, the next line over
-    assert lanes_and_rows(enemy_h) == "2@1 1@1 2@1 1@1"
+    assert lanes_and_rows(enemy_h) == "2@1 3@1 2@1 3@1"
     assert enemy_h.lua("return #LAST_CMD.spawns") == "2"
 
 
@@ -229,11 +229,11 @@ def test_quarter_accumulator_carries_across_commands(enemy_h):
     assert spawn(enemy_h, ["a"] * 3, 0.25, reset_acc=False) == "1"
 
 
-def test_ten_spawns_ten_per_normal_entry_in_rows_of_three(enemy_h):
+def test_ten_spawns_ten_per_normal_entry_in_rows_of_four(enemy_h):
     assert spawn(enemy_h, ["a", "b", "a"], 10) == "30"
     assert enemy_h.lua("return LAST_STORE.current_spawn_idx") == "3"
-    # one wait for the command, then rows of 3 (4 rows for 10): 3 spacing waits per entry
-    assert enemy_h.lua("return #WAITS") == str(1 + 3 * 3)
+    # one wait for the command, then rows of 4 (3 rows for 10): 2 spacing waits per entry
+    assert enemy_h.lua("return #WAITS") == str(1 + 3 * 2)
     assert enemy_h.lua("return WAITS[2]") == "0.25"
 
 
@@ -245,7 +245,7 @@ def test_ten_boss_still_one_and_carrier_scaled(enemy_h):
 
 def test_hundred_spawns_hundred_per_entry_and_keeps_boss_single(enemy_h):
     assert spawn(enemy_h, ["boss", "a"], 100) == "101"
-    assert enemy_h.lua("return #WAITS") == str(1 + 16)  # 17 rows of up to 6
+    assert enemy_h.lua("return #WAITS") == str(1 + 14)  # 15 rows of up to 7
 
 
 def first(h, count):
@@ -260,22 +260,23 @@ def test_rows_fill_the_three_rails_starting_from_the_originals(enemy_h):
 
 
 def test_middle_rail_original_keeps_it_in_three_lines(enemy_h):
-    assert spawn(enemy_h, ["a"], 4, spi="1") == "4"
-    assert lanes_and_rows(enemy_h) == "1@1 3@1 2@1 1@2"
+    assert spawn(enemy_h, ["a"], 6, spi="1") == "6"
+    assert lanes_and_rows(enemy_h) == "1@1 3@1 2@1 1@2 3@2 2@2"
 
 
-def test_thirty_walk_in_four_lines(enemy_h):
-    assert spawn(enemy_h, ["a"], 30, spi="2") == "30"
-    assert first(enemy_h, 5) == ["2@1", "141@1", "142@1", "3@1", "2@2"]
+def test_two_to_four_walk_on_the_two_edge_rails(enemy_h):
+    assert spawn(enemy_h, ["a"], 4, spi="3") == "4"
+    assert lanes_and_rows(enemy_h) == "3@1 2@1 3@2 2@2"
 
 
-def test_middle_rail_original_joins_the_four_lines(enemy_h):
-    assert spawn(enemy_h, ["a"], 30, spi="1") == "30"
-    assert sorted(first(enemy_h, 4)) == ["141@1", "142@1", "2@1", "3@1"]
+def test_ten_walk_in_four_lines(enemy_h):
+    assert spawn(enemy_h, ["a"], 10, spi="2") == "10"
+    # 4 lines reach past the edges, so none is rail 2: the original joins on a random line
+    assert sorted(first(enemy_h, 4)) == ["140@1", "141@1", "142@1", "143@1"]
 
 
-def test_inner_rails_sit_a_third_of_the_way_to_each_edge(enemy_h):
-    spawn(enemy_h, ["a"], 30, spi="2")
+def test_inner_rails_sit_a_third_of_the_way_to_each_edge_without_a_grid(enemy_h):
+    spawn(enemy_h, ["a"], 10, spi="2")
     out = enemy_h.lua("""
       local P = require("path_db")
       local t = {}
@@ -290,26 +291,28 @@ def test_inner_rails_sit_a_third_of_the_way_to_each_edge(enemy_h):
 
 
 def test_raising_enemies_mid_level_keeps_the_earlier_rails(enemy_h):
-    # enemies already walking the 4-line rails must still find them after x70 adds 6 lines
-    spawn(enemy_h, ["a"], 30, spi="2")
+    # enemies already walking the 4-line rails must still find them after x70 adds 7 lines
+    spawn(enemy_h, ["a"], 10, spi="2")
     assert spawn(enemy_h, ["a"], 70, spi="2", reset_acc=False) == "70"
     out = enemy_h.lua("""
       local road = require("path_db").paths[1]
       local t = {}
-      for _, k in ipairs({ 141, 142, 160, 161, 162, 163, 164, 165 }) do t[#t + 1] = road[k] and "y" or "n" end
+      for _, k in ipairs({ 140, 141, 142, 143, 170, 171, 172, 174, 175, 176 }) do
+        t[#t + 1] = road[k] and "y" or "n"
+      end
       return #road .. ":" .. table.concat(t)
     """)
-    assert out == "3:yyyyyyyy"
+    assert out == "3:yyyyyyyyyy"
 
 
 def test_new_level_roads_get_rails_again(enemy_h):
-    spawn(enemy_h, ["a"], 30, spi="2")
+    spawn(enemy_h, ["a"], 10, spi="2")
     enemy_h.lua("""
       local P = require("path_db")
       P.paths = { { { { x = 0, y = 0 } }, { { x = 0, y = 3 } }, { { x = 0, y = -3 } } } }
     """)
-    assert spawn(enemy_h, ["a"], 30, spi="2") == "30"
-    assert first(enemy_h, 4) == ["2@1", "141@1", "142@1", "3@1"]
+    assert spawn(enemy_h, ["a"], 10, spi="2") == "10"
+    assert sorted(first(enemy_h, 4)) == ["140@1", "141@1", "142@1", "143@1"]
     assert enemy_h.lua("return require('path_db').paths[1][141][1].y") == "1"
 
 
@@ -320,7 +323,7 @@ def test_roads_with_other_rails_keep_their_own_lines(enemy_h):
       local P = require("path_db")
       P.paths = { P.paths[1], { { { x = 0, y = 0 } } } }
     """)
-    assert spawn(enemy_h, ["a"], 30, spi="2") == "30"
+    assert spawn(enemy_h, ["a"], 10, spi="2") == "10"
     assert first(enemy_h, 4) == ["2@1", "3@1", "1@1", "2@2"]
     assert enemy_h.lua("return tostring(require('path_db').paths[1][141])") == "nil"
 
@@ -332,29 +335,29 @@ def test_one_lane_road_spawns_copies_one_behind_another(enemy_h):
 
 
 def test_random_lane_entry_still_fills_all_three_lanes_at_once(enemy_h):
-    assert spawn(enemy_h, ["a"], 3, spi='"*"') == "3"
-    assert sorted(lanes_and_rows(enemy_h).split()) == ["1@1", "2@1", "3@1"]
+    assert spawn(enemy_h, ["a"], 5, spi='"*"') == "5"
+    assert sorted(first(enemy_h, 3)) == ["1@1", "2@1", "3@1"]
 
 
 @pytest.mark.parametrize("mult, lines", [
-    (2, 3), (29.9, 3), (30, 4), (49, 4), (50, 5), (69, 5), (70, 6), (100, 6),
+    (2, 2), (4.9, 2), (5, 3), (9, 3), (10, 4), (29, 4), (30, 5), (49, 5), (50, 6), (69, 6),
+    (70, 7), (100, 7),
 ])
 def test_more_enemies_more_lines(enemy_h, mult, lines):
     code = f'return dofile(GAME_DIR .. "/mods/kr_mod/enemies.lua").lines_for({mult})'
     assert enemy_h.lua(code) == str(lines)
 
 
-def test_fifty_walk_in_five_lines_keeping_the_middle_rail(enemy_h):
-    assert spawn(enemy_h, ["a"], 50, spi="1") == "50"
+def test_thirty_walk_in_five_lines_keeping_the_middle_rail(enemy_h):
+    assert spawn(enemy_h, ["a"], 30, spi="1") == "30"
     # 5 lines: outer, halfway, the middle rail itself, halfway, outer
     assert first(enemy_h, 6) == ["1@1", "153@1", "154@1", "150@1", "151@1", "1@2"]
     out = enemy_h.lua("local P = require('path_db'); return P.paths[1][151][2].y .. ',' .. P.paths[1][153][2].y")
     assert out == "3,-3"
 
 
-def test_seventy_walk_in_six_lines_within_the_road_without_a_grid(enemy_h):
-    assert spawn(enemy_h, ["a"], 70, spi="2") == "70"
-    # rail 2 is not one of the 6 lines: the original joins the row on a random line
+def test_fifty_walk_in_six_lines_within_the_road_without_a_grid(enemy_h):
+    assert spawn(enemy_h, ["a"], 50, spi="2") == "50"
     assert sorted(first(enemy_h, 6)) == ["160@1", "161@1", "162@1", "163@1", "164@1", "165@1"]
     out = enemy_h.lua("""
       local P = require("path_db"); local t = {}
@@ -384,7 +387,7 @@ def six_line_ys(h, blocked_from_y=None):
         {{ {{ x = 4, y = 106 }}, {{ x = 12, y = 106 }} }},
         {{ {{ x = 4, y = 94 }}, {{ x = 12, y = 94 }} }},
       }} }}
-      KRMOD.live.enemy_mult = 70; KRMOD.enemy_acc = {{}}
+      KRMOD.live.enemy_mult = 50; KRMOD.enemy_acc = {{}}
       local store = {{ current_spawn_idx = 0, gems_spawn_idx = {{}}, gems_per_wave = 10 }}
       require("systems").wave_spawn_tsv.cmd_fns.spawn(store, {{ spawns = {{ {{ pi = 1, spi = 2, enemy = "a" }} }} }}, "w1")
       local road, t = require("path_db").paths[1], {{}}
@@ -393,16 +396,16 @@ def six_line_ys(h, blocked_from_y=None):
     """)
 
 
-def test_six_lines_keep_the_four_lines_gap_over_walkable_ground(enemy_h):
-    # road 12 px edge to edge: 4 lines are 4 px apart, and so are the 6 lines, reaching 4 px
-    # past each edge
-    assert six_line_ys(enemy_h) == "110.0,106.0,102.0,98.0,94.0,90.0"
+def test_six_lines_keep_their_gap_over_walkable_ground(enemy_h):
+    # road 12 px edge to edge: lines are 0.4 of it (4.8 px) apart, so 6 lines reach 6 px past
+    # each edge
+    assert six_line_ys(enemy_h) == "112.0,107.2,102.4,97.6,92.8,88.0"
 
 
 def test_six_lines_narrow_where_the_ground_beside_the_road_is_not_walkable(enemy_h):
     # past y=108 is not walkable: that side reaches 2 px past its edge and keeps even gaps,
-    # the other side still reaches 4 px past its edge
-    assert six_line_ys(enemy_h, blocked_from_y=108) == "108.0,104.8,101.6,98.0,94.0,90.0"
+    # the other side still reaches 6 px past its edge
+    assert six_line_ys(enemy_h, blocked_from_y=108) == "108.0,104.8,101.6,97.6,92.8,88.0"
 
 
 def test_single_enemy_keeps_its_random_lane_for_the_game(enemy_h):
