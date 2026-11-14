@@ -8,7 +8,8 @@ computed once per table and shared by that table's leaves.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
 from functools import lru_cache
 
 from .grouping_rules import (
@@ -181,6 +182,7 @@ class GroupIndex:
         self._placements: dict[KeyPath, Card] = {}
         self._numeric: list[KeyPath] = []
         self._by_tab: dict[str, list[Card]] = {tab: [] for tab in TABS}
+        self._section_namer: Callable[[str, str], str | None] = lambda card_id, group: None
 
     @classmethod
     def build(cls, tree: BalanceTree) -> "GroupIndex":
@@ -196,11 +198,37 @@ class GroupIndex:
         idx._paths[ALL_ENEMIES.id] = [p for p in tree.leaves if p[0] == ALL_ENEMIES.prefix[0]]
         for paths in idx._paths.values():
             paths.sort(key=_path_key)
-        for card in idx._cards.values():
-            idx._by_tab[card.tab].append(card)
-        for cards in idx._by_tab.values():
-            cards.sort(key=_card_order)
+        idx._list_tabs()
         return idx
+
+    def _list_tabs(self) -> None:
+        self._by_tab = {tab: [] for tab in TABS}
+        for card in self._cards.values():
+            self._by_tab[card.tab].append(card)
+        for cards in self._by_tab.values():
+            cards.sort(key=_card_order)
+
+    def apply_names(
+        self,
+        titles: Mapping[str, str],
+        section_namer: Callable[[str, str], str | None] | None = None,
+    ) -> None:
+        """Show the game's own names: titles maps card id -> title (other cards keep theirs),
+        section_namer(card id, row group) names skill sections or returns None."""
+        renamed = {
+            cid: replace(card, title=titles[cid])
+            for cid, card in self._cards.items()
+            if titles.get(cid)
+        }
+        self._cards.update(renamed)
+        self._placements = {p: renamed.get(c.id, c) for p, c in self._placements.items()}
+        if section_namer is not None:
+            self._section_namer = section_namer
+        self._list_tabs()
+
+    def section_name(self, card_id: str, group: str) -> str | None:
+        """The game's name of a section of a card (a skill, ultimate, talent or spell upgrade)."""
+        return self._section_namer(card_id, group)
 
     def cards(self, tab: Tab) -> list[Card]:
         return list(self._by_tab[tab])
