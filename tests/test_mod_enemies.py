@@ -296,10 +296,10 @@ def test_raising_enemies_mid_level_keeps_the_earlier_rails(enemy_h):
     out = enemy_h.lua("""
       local road = require("path_db").paths[1]
       local t = {}
-      for _, k in ipairs({ 141, 142, 161, 162, 163, 164 }) do t[#t + 1] = road[k] and "y" or "n" end
+      for _, k in ipairs({ 141, 142, 160, 161, 162, 163, 164, 165 }) do t[#t + 1] = road[k] and "y" or "n" end
       return #road .. ":" .. table.concat(t)
     """)
-    assert out == "3:yyyyyy"
+    assert out == "3:yyyyyyyy"
 
 
 def test_new_level_roads_get_rails_again(enemy_h):
@@ -346,21 +346,63 @@ def test_more_enemies_more_lines(enemy_h, mult, lines):
 
 def test_fifty_walk_in_five_lines_keeping_the_middle_rail(enemy_h):
     assert spawn(enemy_h, ["a"], 50, spi="1") == "50"
-    # 5 lines: edge, halfway, the middle rail itself, halfway, edge
-    assert first(enemy_h, 6) == ["1@1", "153@1", "3@1", "2@1", "151@1", "1@2"]
+    # 5 lines: outer, halfway, the middle rail itself, halfway, outer
+    assert first(enemy_h, 6) == ["1@1", "153@1", "154@1", "150@1", "151@1", "1@2"]
     out = enemy_h.lua("local P = require('path_db'); return P.paths[1][151][2].y .. ',' .. P.paths[1][153][2].y")
     assert out == "3,-3"
 
 
-def test_seventy_walk_in_six_lines(enemy_h):
+def test_seventy_walk_in_six_lines_within_the_road_without_a_grid(enemy_h):
     assert spawn(enemy_h, ["a"], 70, spi="2") == "70"
-    assert first(enemy_h, 7) == ["2@1", "161@1", "162@1", "163@1", "164@1", "3@1", "2@2"]
+    # rail 2 is not one of the 6 lines: the original joins the row on a random line
+    assert sorted(first(enemy_h, 6)) == ["160@1", "161@1", "162@1", "163@1", "164@1", "165@1"]
     out = enemy_h.lua("""
       local P = require("path_db"); local t = {}
-      for k = 161, 164 do t[#t + 1] = string.format("%.1f", P.paths[2][k][1].y) end
+      for k = 160, 165 do t[#t + 1] = string.format("%.1f", P.paths[2][k][1].y) end
       return #P.paths[2] .. ":" .. table.concat(t, ",")
     """)
-    assert out == "3:103.6,101.2,98.8,96.4"
+    assert out == "3:106.0,103.6,101.2,98.8,96.4,94.0"
+
+
+def six_line_ys(h, blocked_from_y=None):
+    """y of the 6 lines at the first node of a road at y=100 (edges at 106 and 94), on a grid of
+    4 px walkable cells, optionally not walkable from blocked_from_y up."""
+    blocked = f"if y > {blocked_from_y} then t = 1 + 256 end" if blocked_from_y else ""
+    return h.lua(f"""
+      local grid = {{}}
+      for i = 1, 5 do
+        grid[i] = {{}}
+        for j = 1, 40 do
+          local y, t = j * 4, 1
+          {blocked}
+          grid[i][j] = t
+        end
+      end
+      package.loaded["grid_db"] = {{ grid = grid, cell_size = 4, ox = 0, oy = 0 }}
+      require("path_db").paths = {{ {{
+        {{ {{ x = 4, y = 100 }}, {{ x = 12, y = 100 }} }},
+        {{ {{ x = 4, y = 106 }}, {{ x = 12, y = 106 }} }},
+        {{ {{ x = 4, y = 94 }}, {{ x = 12, y = 94 }} }},
+      }} }}
+      KRMOD.live.enemy_mult = 70; KRMOD.enemy_acc = {{}}
+      local store = {{ current_spawn_idx = 0, gems_spawn_idx = {{}}, gems_per_wave = 10 }}
+      require("systems").wave_spawn_tsv.cmd_fns.spawn(store, {{ spawns = {{ {{ pi = 1, spi = 2, enemy = "a" }} }} }}, "w1")
+      local road, t = require("path_db").paths[1], {{}}
+      for k = 160, 165 do t[#t + 1] = string.format("%.1f", road[k][1].y) end
+      return table.concat(t, ",")
+    """)
+
+
+def test_six_lines_keep_the_four_lines_gap_over_walkable_ground(enemy_h):
+    # road 12 px edge to edge: 4 lines are 4 px apart, and so are the 6 lines, reaching 4 px
+    # past each edge
+    assert six_line_ys(enemy_h) == "110.0,106.0,102.0,98.0,94.0,90.0"
+
+
+def test_six_lines_narrow_where_the_ground_beside_the_road_is_not_walkable(enemy_h):
+    # past y=108 is not walkable: that side reaches 2 px past its edge and keeps even gaps,
+    # the other side still reaches 4 px past its edge
+    assert six_line_ys(enemy_h, blocked_from_y=108) == "108.0,104.8,101.6,98.0,94.0,90.0"
 
 
 def test_single_enemy_keeps_its_random_lane_for_the_game(enemy_h):
