@@ -3,16 +3,16 @@
 -- Extra copies walk side by side: each row fills the road's lines (the original's line first),
 -- and the next row follows EXTRA_SPACING seconds later.
 --
--- Every road of the game has 3 rails: 1 in the middle, 2 and 3 on the edges. When copies are
--- needed, two inner rails are added to every road of the level, a third of the way from the
--- middle to each edge, so a row is 4 evenly spaced lines: 2, INNER[1], INNER[2], 3. Their keys
--- are far above 3 so #P.paths[pi] stays 3: the game's own "random rail" picks and loops never
--- see them. Only rows walk on them: the copies, and an original that has copies (one from the
--- middle rail or a random rail joins its row on one of the 4 lines).
+-- Every road of the game has 3 rails: 1 in the middle, 2 and 3 on the edges (about 40 px
+-- apart). A row has more lines the more enemies there are (lines_for): 3, 4, 5 or 6, evenly
+-- spaced from edge to edge. Lines between the edges other than the middle are inner rails the
+-- mod adds to every road of the level when copies first need them. Their keys are far above 3
+-- so #P.paths[pi] stays 3: the game's own "random rail" picks and loops never see them. Only
+-- rows walk on them: the copies, and an original that has copies (one on a rail outside the
+-- row, or on a random rail, joins its row on a random line).
 local M = {}
 
 M.EXTRA_SPACING = 0.25
-M.INNER = { 101, 102 }
 
 local ok_bit, bit_lib = pcall(require, "bit")
 local bit = bit or (ok_bit and bit_lib)
@@ -90,39 +90,80 @@ local function node_count(rail)
   return type(rail) == "table" and #rail or 0
 end
 
--- Add the inner rails to every road of P once per level (P.paths is a new table each level).
--- All or nothing: an enemy keeps its rail number when it walks onto the next road, so every road
--- needs them. Returns true when the roads have them.
-function M.add_inner_rails(P)
+-- Lines per row for an Enemies multiplier: more enemies, more lines (shorter waves). Below x30
+-- a row is the game's own 3 rails (edge, middle, edge), so no inner rails are added.
+function M.lines_for(mult)
+  if mult >= 70 then return 6 end
+  if mult >= 50 then return 5 end
+  if mult >= 30 then return 4 end
+  return 3
+end
+
+-- The rails of a row of `lines` lines, left to right, with each one's place across the road
+-- (1 = rail 2's edge, 0 = the middle rail, -1 = rail 3's edge). Inner rails get the key
+-- 100 + 10 * lines + i, so rows of different sizes never share one.
+function M.row_rails(lines)
+  local row = {}
+  for i = 0, lines - 1 do
+    local t = 1 - 2 * i / (lines - 1)
+    local key
+    if t == 1 then
+      key = 2
+    elseif t == -1 then
+      key = 3
+    elseif t == 0 then
+      key = 1
+    else
+      key = 100 + 10 * lines + i
+    end
+    row[#row + 1] = { key = key, t = t }
+  end
+  return row
+end
+
+-- Add the inner rails of a row of `lines` lines to every road of P, once per level (P.paths is
+-- a new table each level) and row size. All or nothing: an enemy keeps its rail number when it
+-- walks onto the next road, so every road needs them. Returns the row's rail keys, left to
+-- right, or nil when the roads cannot have them.
+function M.add_rails(P, lines)
   local paths = type(P) == "table" and P.paths or nil
-  if type(paths) ~= "table" or #paths == 0 then return false end
-  if M._railed == paths then return true end
+  if type(paths) ~= "table" or #paths == 0 then return nil end
+  local row = M.row_rails(lines)
+  local keys = {}
+  for i, rail in ipairs(row) do keys[i] = rail.key end
+  if M._railed ~= paths then M._railed, M._railed_sizes = paths, {} end
+  if M._railed_sizes[lines] then return keys end
   for pi = 1, #paths do
     local road = paths[pi]
-    if type(road) ~= "table" then return false end
+    if type(road) ~= "table" then return nil end
     local n = node_count(road[1])
-    if n == 0 or node_count(road[2]) ~= n or node_count(road[3]) ~= n then return false end
+    if n == 0 or node_count(road[2]) ~= n or node_count(road[3]) ~= n then return nil end
   end
   for pi = 1, #paths do
     local mid, left, right = paths[pi][1], paths[pi][2], paths[pi][3]
-    local inner_left, inner_right = {}, {}
-    for ni = 1, #mid do
-      local c, l, r = mid[ni], left[ni], right[ni]
-      inner_left[ni] = { x = c.x + (l.x - c.x) / 3, y = c.y + (l.y - c.y) / 3 }
-      inner_right[ni] = { x = c.x + (r.x - c.x) / 3, y = c.y + (r.y - c.y) / 3 }
+    for _, rail in ipairs(row) do
+      if rail.key > 3 then
+        local edge, f = left, rail.t
+        if f < 0 then edge, f = right, -f end
+        local nodes = {}
+        for ni = 1, #mid do
+          local c, e = mid[ni], edge[ni]
+          nodes[ni] = { x = c.x + (e.x - c.x) * f, y = c.y + (e.y - c.y) * f }
+        end
+        paths[pi][rail.key] = nodes
+      end
     end
-    paths[pi][M.INNER[1]] = inner_left
-    paths[pi][M.INNER[2]] = inner_right
   end
-  M._railed = paths
-  return true
+  M._railed_sizes[lines] = true
+  return keys
 end
 
--- The lines of one row (left to right) for an entry, and the line the original takes. With the
--- inner rails: 2, INNER[1], INNER[2], 3, and an original on the middle rail or on "*" takes a
--- random one of them. Without them: the road's rails 1..n, "*" picking one as the game would.
--- An unknown rail gives no row: copies then spawn one behind another on the original's rail.
-function M.lanes(P, o)
+-- The lines of one row (left to right) for an entry, and the index of the line the original
+-- takes. On roads with the game's 3 rails: a row of `lines` lines (see add_rails); an original
+-- on a rail outside the row, or on "*", takes a random line. Otherwise the road's rails 1..n,
+-- "*" picking one as the game would. An unknown rail gives no row: copies then spawn one behind
+-- another on the original's rail.
+function M.lanes(P, o, lines)
   local road = type(P) == "table" and type(P.paths) == "table" and P.paths[o.pi] or nil
   local rails = type(road) == "table" and #road or 1
   if rails < 1 then rails = 1 end
@@ -130,19 +171,15 @@ function M.lanes(P, o)
   if spi ~= "*" and (type(spi) ~= "number" or spi < 1 or spi > rails or spi ~= math.floor(spi)) then
     return nil, nil
   end
-  local row
-  if rails == 3 and M.add_inner_rails(P) then
-    row = { 2, M.INNER[1], M.INNER[2], 3 }
-    if spi == "*" or spi == 1 then spi = row[math.random(#row)] end
-  else
+  local row = rails == 3 and M.add_rails(P, lines or 4) or nil
+  if not row then
     row = {}
     for i = 1, rails do row[i] = i end
-    if spi == "*" then spi = math.random(rails) end
   end
   for i, lane in ipairs(row) do
     if lane == spi then return row, i end
   end
-  return nil, nil
+  return row, math.random(#row)
 end
 
 -- Spawn one row of copies of o at the same moment, one per given lane, without touching the
@@ -202,7 +239,7 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
     elseif n >= 1 then
       -- A single enemy keeps its rail; copies get a row of lines (none: one behind another).
       local lanes, base = nil, nil
-      if n > 1 then lanes, base = M.lanes(P, o) end
+      if n > 1 then lanes, base = M.lanes(P, o, M.lines_for(mult)) end
       local width = lanes and #lanes or 1
       local first = o
       if base then
