@@ -289,9 +289,17 @@ def test_inner_rails_sit_a_third_of_the_way_to_each_edge(enemy_h):
     assert out == "3:10,2/10,-2 3:10,102/10,98"
 
 
-def test_single_enemies_add_no_rails(enemy_h):
-    spawn(enemy_h, ["a"], 1.5, spi="1")
-    assert enemy_h.lua("return tostring(require('path_db').paths[1][141])") == "nil"
+def test_raising_enemies_mid_level_keeps_the_earlier_rails(enemy_h):
+    # enemies already walking the 4-line rails must still find them after x70 adds 6 lines
+    spawn(enemy_h, ["a"], 30, spi="2")
+    assert spawn(enemy_h, ["a"], 70, spi="2", reset_acc=False) == "70"
+    out = enemy_h.lua("""
+      local road = require("path_db").paths[1]
+      local t = {}
+      for _, k in ipairs({ 141, 142, 161, 162, 163, 164 }) do t[#t + 1] = road[k] and "y" or "n" end
+      return #road .. ":" .. table.concat(t)
+    """)
+    assert out == "3:yyyyyy"
 
 
 def test_new_level_roads_get_rails_again(enemy_h):
