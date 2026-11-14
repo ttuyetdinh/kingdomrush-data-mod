@@ -320,3 +320,23 @@ async def test_folds_are_kept_when_switching_cards(user):
     await user.should_see(marker="cell-towers.knights.price.1")
     user.find("Archers").click()
     await user.should_not_see(marker=BASIC)
+
+
+async def test_all_enemies_card_scales_every_enemy_with_undo(user):
+    await user.open("/")
+    user.find("Enemies").click()
+    user.find(marker="card-enemies/all").click()
+    await user.should_see(marker="card-pct-all-moving-speed")
+    await user.should_not_see("Row %")  # no level table for the summary card
+    _commit(user, "card-pct-all-moving-speed", "50")
+    box = _box(user, "card-pct-all-moving-speed")
+    assert (box.value, box.props.get("original")) == ("50%", "100%")
+    user.find("Goblin").click()
+    assert _val(user, "cell-enemies.orcs.goblin.speed") == "25"
+    assert _val(user, "card-pct-all-moving-speed") == "50%"
+    user.find(marker="card-enemies/all").click()
+    user.find(marker="card-pct-all-moving-speed").trigger("reset")
+    box = _box(user, "card-pct-all-moving-speed")
+    assert (box.value, box.props.get("original")) == ("100%", None)
+    user.find("Goblin").click()
+    assert _val(user, "cell-enemies.orcs.goblin.speed") == "50"

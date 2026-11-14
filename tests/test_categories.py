@@ -14,6 +14,9 @@ from krmod.model.categories import CATEGORY_NAMES, category_of
     (("x", "range"), "All range"), (("x", "range_unit"), None),
     (("x", "ranged_damage_type"), None), (("x", "min_hp_max"), "All HP"),
     (("x", "radius_offset"), None), (("x", "cooldown_decrease"), None),
+    (("enemies", "orcs", "goblin", "speed"), "All moving speed"),
+    (("x", "movement_speed"), "All moving speed"), (("x", "speed_mult", 1), None),
+    (("x", "slide_speed_factor"), None),
 ])
 def test_category_of(path, cat):
     assert category_of(path) == cat

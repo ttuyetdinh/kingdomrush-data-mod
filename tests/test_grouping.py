@@ -91,6 +91,16 @@ def test_cards_listing_and_paths(tree):
     assert idx.card("towers/archers").prefix == ("towers", "archers")
 
 
+def test_all_enemies_card_spans_every_enemy_but_homes_none(tree):
+    idx = GroupIndex.build(tree)
+    first = idx.cards("Enemies")[0]
+    assert (first.id, first.title, first.summary) == ("enemies/all", "All enemies", True)
+    paths = set(idx.paths_of("enemies/all"))
+    assert paths == {p for p in tree.leaves if p[0] == "enemies"}
+    assert {("enemies", "jt_boss", "speed"), ("enemies", "orcs", "goblin", "speed")} <= paths
+    assert idx.card_of(("enemies", "orcs", "goblin", "speed")).id == "enemies/orcs/goblin"
+
+
 def test_build_is_fast(tree):
     start = time.perf_counter()
     GroupIndex.build(tree)

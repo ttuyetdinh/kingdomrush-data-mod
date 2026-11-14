@@ -196,6 +196,19 @@ class AppState:
     def card_pct(self, card_id: str, category: str) -> float | None:
         return self._pct_of(self._eligible_card_paths(card_id, category))
 
+    def card_category_changed(self, card_id: str, category: str) -> bool:
+        """True when any value a Quick scale box covers differs from the game's value."""
+        return any(p in self.profile.changes for p in self._eligible_card_paths(card_id, category))
+
+    def reset_card_category(self, card_id: str, category: str) -> None:
+        """Put every value a Quick scale box covers back to the game's value (one save)."""
+        self._last_pct = None
+        changed = [p for p in self._eligible_card_paths(card_id, category) if p in self.profile.changes]
+        for p in changed:
+            del self.profile.changes[p]
+        if changed:
+            self.store.save(self.profile)
+
     def _scale_paths(self, paths: Sequence[KeyPath], pct: float) -> None:
         pct = round(pct, 1)
         self._apply_pct(paths, pct)
