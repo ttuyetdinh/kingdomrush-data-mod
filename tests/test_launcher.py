@@ -1,4 +1,6 @@
 import dataclasses
+import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
@@ -123,8 +125,8 @@ def test_find_game_skips_inaccessible_processes(tmp_game, monkeypatch):
 def test_launch_calls_popen(tmp_game, monkeypatch):
     calls = []
 
-    def fake_popen(cmd, cwd=None, creationflags=0):
-        calls.append({"cmd": cmd, "cwd": cwd, "creationflags": creationflags})
+    def fake_popen(cmd, cwd=None, env=None, creationflags=0):
+        calls.append({"cmd": cmd, "cwd": cwd, "env": env, "creationflags": creationflags})
         return SimpleNamespace(pid=42)
 
     monkeypatch.setattr("subprocess.Popen", fake_popen)
@@ -137,6 +139,30 @@ def test_launch_calls_popen(tmp_game, monkeypatch):
         "mods.kr_mod",
     ]
     assert calls[0]["cwd"] == str(tmp_game.game_dir)
+    assert calls[0]["env"] is None  # not the single-file exe: the app's own environment
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="SetDllDirectoryW is Windows only")
+def test_frozen_launch_gives_the_game_the_system_dll_search(tmp_game, tmp_path, monkeypatch):
+    # The game must not load DLLs from the exe's unpack folder: it would hold them while it
+    # runs and the exe could not remove that folder when it closes.
+    import ctypes
+
+    bundle = tmp_path / "runtime" / "_MEI123"
+    events = []
+    kernel32 = SimpleNamespace(SetDllDirectoryW=lambda path: events.append(("dll", path)))
+    monkeypatch.setattr(ctypes.windll, "kernel32", kernel32, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(bundle), raising=False)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(bundle), str(bundle / "lib"), r"C:\Windows"]))
+
+    def fake_popen(cmd, cwd=None, env=None, creationflags=0):
+        events.append(("popen", env["PATH"]))
+        return SimpleNamespace(pid=7)
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    assert launch(tmp_game) == 7
+    assert events == [("dll", None), ("popen", r"C:\Windows"), ("dll", str(bundle))]
+    assert os.environ["PATH"].startswith(str(bundle))  # the app's own PATH is untouched
 
 
 def test_game_exe_name():
