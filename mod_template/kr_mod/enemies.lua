@@ -163,11 +163,16 @@ local function reach(GR, mid, edge, spread)
     if spread > 1 and half > 0 and base and base ~= 0 and bit.band(base, NOWALK) == 0 then
       base = bit.band(base, WALK_MASK)
       local need = (spread - 1) * half
-      local s = 2
-      while s <= need and bit.band(cell(GR, e.x + dx / half * s, e.y + dy / half * s), WALK_MASK) == base do
-        s = s + 2
+      local function walkable(d)
+        return bit.band(cell(GR, e.x + dx / half * d, e.y + dy / half * d), WALK_MASK) == base
       end
-      r = math.min(spread, 1 + math.min(s - 2, need) / half)
+      -- walk out in 2 px steps, then check the full reach itself (need is rarely a whole step)
+      local walked, s = 0, 2
+      while s < need and walkable(s) do
+        walked, s = s, s + 2
+      end
+      if s >= need and walkable(need) then walked = need end
+      r = 1 + walked / half
     end
     raw[ni] = r
   end

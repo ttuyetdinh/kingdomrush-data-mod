@@ -408,6 +408,28 @@ def test_six_lines_narrow_where_the_ground_beside_the_road_is_not_walkable(enemy
     assert six_line_ys(enemy_h, blocked_from_y=108) == "108.0,104.8,101.6,97.6,92.8,88.0"
 
 
+def test_four_lines_reach_a_reach_shorter_than_one_step(enemy_h):
+    # edges 5 px from the middle: 4 lines reach 0.2 x 5 = 1 px past each edge, less than the
+    # 2 px walking step, and still get it on open ground
+    out = enemy_h.lua("""
+      local grid = {}
+      for i = 1, 5 do grid[i] = {}; for j = 1, 40 do grid[i][j] = 1 end end
+      package.loaded["grid_db"] = { grid = grid, cell_size = 4, ox = 0, oy = 0 }
+      require("path_db").paths = { {
+        { { x = 4, y = 100 }, { x = 12, y = 100 } },
+        { { x = 4, y = 105 }, { x = 12, y = 105 } },
+        { { x = 4, y = 95 }, { x = 12, y = 95 } },
+      } }
+      KRMOD.live.enemy_mult = 10; KRMOD.enemy_acc = {}
+      local store = { current_spawn_idx = 0, gems_spawn_idx = {}, gems_per_wave = 10 }
+      require("systems").wave_spawn_tsv.cmd_fns.spawn(store, { spawns = { { pi = 1, spi = 2, enemy = "a" } } }, "w1")
+      local road, t = require("path_db").paths[1], {}
+      for k = 140, 143 do t[#t + 1] = string.format("%.1f", road[k][1].y) end
+      return table.concat(t, ",")
+    """)
+    assert out == "106.0,102.0,98.0,94.0"
+
+
 def test_single_enemy_keeps_its_random_lane_for_the_game(enemy_h):
     assert spawn(enemy_h, ["a"], 1.5, spi='"*"') == "1"
     assert lanes_and_rows(enemy_h) == "*@1"
