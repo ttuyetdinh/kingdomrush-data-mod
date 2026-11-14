@@ -124,6 +124,21 @@ def test_all_enemies_scales_every_enemy_and_boss(state):
     assert state.current(goblin_hp) == 40  # other kinds keep their edits
 
 
+def test_all_range_widens_reach_only(state):
+    # The sniper's blind spot, retarget jumps and unlimited max range stay the game's.
+    state.scale_card("towers/sniper", "All range", 120)
+    changed = set(state.profile.changes)
+    assert ("towers", "sniper", "stats", "range") in changed
+    for p in (
+        ("towers", "sniper", "basic_attack", "min_range", 1),
+        ("towers", "sniper", "basic_attack", "max_range", 1),
+        ("towers", "sniper", "basic_attack", "max_retarget_range"),
+        ("towers", "sniper", "ultimate", "retarget_range"),
+    ):
+        assert p not in changed
+    assert state.card_pct("towers/sniper", "All range") == 120
+
+
 def test_set_value_validation(state):
     p = ("towers", "archers", "price", 1)
     with pytest.raises(ValueError):

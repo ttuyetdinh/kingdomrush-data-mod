@@ -11,6 +11,8 @@ from krmod.model.values import KeyPath
 PCT_MIN = 0.0
 PCT_MAX = 500.0
 PCT_MID = 100.0
+# The game writes "no limit" as a huge number (the sniper's max_range is 1e+99).
+UNLIMITED = 1e15
 
 _WHOLE = Decimal(1)
 _TENTH = Decimal("0.1")
@@ -35,7 +37,7 @@ def scale(original: float, pct: float) -> float:
     if float(pct) == 100.0:
         return original
     with decimal.localcontext(decimal.Context(prec=400)):
-        if abs(original) >= 1e15:
+        if abs(original) >= UNLIMITED:
             return float(Decimal(str(original)) * Decimal(str(pct)) / _HUNDRED)
         d_orig = Decimal(str(round(float(original), 6))).normalize()
         if d_orig == d_orig.to_integral_value():

@@ -17,6 +17,15 @@ from krmod.model.categories import CATEGORY_NAMES, category_of
     (("enemies", "orcs", "goblin", "speed"), "All moving speed"),
     (("x", "movement_speed"), "All moving speed"), (("x", "speed_mult", 1), None),
     (("x", "slide_speed_factor"), None),
+    # lower bounds and retarget jumps are not reach: raising them would not widen it
+    (("towers", "sniper", "basic_attack", "min_range", 1), None),
+    (("x", "min_detection_range"), None), (("x", "range_nodes_min"), None),
+    (("x", "min_radius"), None), (("x", "max_range", 1), "All range"),
+    (("towers", "sniper", "basic_attack", "max_retarget_range"), None),
+    (("towers", "sniper", "ultimate", "retarget_range"), None),
+    (("x", "clone", "basic_ranged_attack_ptg"), None),
+    (("x", "s_damage_red"), None), (("x", "damage_red_duration"), None),
+    (("x", "min_damage"), "All damage"),
 ])
 def test_category_of(path, cat):
     assert category_of(path) == cat
