@@ -15,8 +15,11 @@ from krmod.model.stepping import (
     ENEMY_MAX,
     ENEMY_VALUES,
     EXTRA_POINTS_MAX,
+    GAP_MAX,
+    GAP_MIN,
     TROOP_MAX,
     TROOP_MIN,
+    clamp_gap,
     clamp_troop,
     snap_enemy,
 )
@@ -64,6 +67,8 @@ class LiveSettings:
     speed: int = 1
     enemy_mult: float = 1.0
     troop_delta: int = 0
+    # Gaps between groups of enemies in a wave, in percent of the game's own waits.
+    group_gap: int = 100
 
     def validate(self) -> None:
         if isinstance(self.speed, bool) or not isinstance(self.speed, int) or self.speed not in (1, 2, 3):
@@ -78,6 +83,10 @@ class LiveSettings:
             raise ProfileError(f"troop_delta must be a whole number, got {self.troop_delta!r}")
         if not TROOP_MIN <= self.troop_delta <= TROOP_MAX:
             raise ProfileError(f"troop_delta must be between {TROOP_MIN} and {TROOP_MAX}, got {self.troop_delta!r}")
+        if isinstance(self.group_gap, bool) or not isinstance(self.group_gap, int):
+            raise ProfileError(f"group_gap must be a whole number, got {self.group_gap!r}")
+        if not GAP_MIN <= self.group_gap <= GAP_MAX:
+            raise ProfileError(f"group_gap must be between {GAP_MIN} and {GAP_MAX}, got {self.group_gap!r}")
 
 
 # LOVE 11 KeyConstant names (love.keyboard.isDown / love.keypressed).
@@ -192,6 +201,7 @@ def _to_json(profile: Profile) -> dict:
             "speed": profile.live.speed,
             "enemy_mult": profile.live.enemy_mult,
             "troop_delta": profile.live.troop_delta,
+            "group_gap": profile.live.group_gap,
         },
         "speed_keys": list(profile.speed_keys),
     }
@@ -204,6 +214,10 @@ def _snap_enemy_setting(value: object) -> object:
 
 def _clamp_troop_setting(value: object) -> object:
     return clamp_troop(value) if _is_finite_number(value) else value
+
+
+def _clamp_gap_setting(value: object) -> object:
+    return clamp_gap(value) if _is_finite_number(value) else value
 
 
 def _from_json(data: object) -> Profile:
@@ -241,6 +255,7 @@ def _from_json(data: object) -> Profile:
             live.get("speed", 1),
             _snap_enemy_setting(live.get("enemy_mult", 1.0)),
             _clamp_troop_setting(live.get("troop_delta", 0)),
+            _clamp_gap_setting(live.get("group_gap", 100)),
         ),
         speed_keys=validate_speed_keys(keys),
     )

@@ -51,7 +51,7 @@ def test_json_format(tmp_path):
             "extra_spell_points": 0,
             "extra_upgrade_points": 0,
         },
-        "live": {"speed": 1, "enemy_mult": 1.0, "troop_delta": 0},
+        "live": {"speed": 1, "enemy_mult": 1.0, "troop_delta": 0, "group_gap": 100},
         "speed_keys": ["f5", "f6", "f7"],
     }
 
@@ -263,6 +263,10 @@ def test_live_validation():
         LiveSettings(troop_delta=2.0),
         LiveSettings(troop_delta=True),
         LiveSettings(troop_delta="2"),
+        LiveSettings(group_gap=9),
+        LiveSettings(group_gap=501),
+        LiveSettings(group_gap=50.5),
+        LiveSettings(group_gap=True),
     ):
         with pytest.raises(ProfileError):
             bad.validate()
@@ -287,6 +291,14 @@ def test_load_snaps_and_clamps_live(tmp_path, stored, enemy, troop):
     assert isinstance(live.troop_delta, int)
 
 
+@pytest.mark.parametrize("stored, gap", [(None, 100), (50, 50), (999, 500), (3, 10), (62.5, 63)])
+def test_load_group_gap_defaults_and_clamps(tmp_path, stored, gap):
+    # a profile from before the Gaps box has none: the game's own gaps (100%)
+    live = {"speed": 1} if stored is None else {"speed": 1, "group_gap": stored}
+    _write_profile_json(tmp_path / "x.json", live=live)
+    assert ProfileStore(tmp_path).active().live.group_gap == gap
+
+
 def test_legacy_troop_mult_not_saved_again(tmp_path):
     _write_profile_json(
         tmp_path / "x.json", live={"speed": 1, "enemy_mult": 2.0, "troop_mult": 2.0}
@@ -294,7 +306,7 @@ def test_legacy_troop_mult_not_saved_again(tmp_path):
     s = ProfileStore(tmp_path)
     s.save(s.active())
     data = json.loads((tmp_path / "x.json").read_text(encoding="utf-8"))
-    assert data["live"] == {"speed": 1, "enemy_mult": 2.0, "troop_delta": 0}
+    assert data["live"] == {"speed": 1, "enemy_mult": 2.0, "troop_delta": 0, "group_gap": 100}
 
 
 @pytest.mark.parametrize(

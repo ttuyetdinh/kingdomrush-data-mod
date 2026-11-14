@@ -223,6 +223,13 @@ async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
     assert state.profile.live.troop_delta == 100
     assert _box_text(user, "rules-troop-delta") == "+100"
 
+    _commit(user, "rules-group-gap", "50%")
+    assert state.profile.live.group_gap == 50
+    assert _box_text(user, "rules-group-gap") == "50%"
+    _commit(user, "rules-group-gap", "9999")
+    assert state.profile.live.group_gap == 500
+    assert _box_text(user, "group-gap") == "500%"  # the top bar box follows
+
     # rejected text: the saved value stays and the box reverts
     _commit(user, "rules-troop-delta", "abc")
     await user.should_see("Not a number")

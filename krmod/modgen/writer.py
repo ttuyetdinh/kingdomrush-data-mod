@@ -112,7 +112,8 @@ def write_live(paths: GamePaths, live: LiveSettings, *, bump_seq: bool = False) 
     text = (
         f"return {{ speed = {live.speed}, "
         f"enemy_mult = {float(live.enemy_mult)!r}, "
-        f"troop_delta = {int(live.troop_delta)}{seq_field} }}\n"
+        f"troop_delta = {int(live.troop_delta)}, "
+        f"group_gap = {int(live.group_gap)}{seq_field} }}\n"
     )
     atomic_write(path, text)
 

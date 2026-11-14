@@ -16,6 +16,14 @@ local function is_valid_troop_delta(d)
   return type(d) == "number" and d == math.floor(d) and d >= -10 and d <= 100
 end
 
+-- Gaps between groups of a wave in percent of the game's waits: a whole number from 10 to 500.
+-- A live file from before this setting has none, which means the game's own gaps (100).
+local function clean_group_gap(g)
+  if g == nil then return 100 end
+  if type(g) == "number" and g == math.floor(g) and g >= 10 and g <= 500 then return g end
+  return nil
+end
+
 -- Read and validate mods/kr_mod_live.lua. Returns a clean table or nil.
 function M.read_live(path)
   if type(path) ~= "string" then return nil end
@@ -31,7 +39,8 @@ function M.read_live(path)
   end
 
   local enemy_mult = clean_enemy_mult(result.enemy_mult)
-  if enemy_mult == nil or not is_valid_troop_delta(result.troop_delta) then
+  local group_gap = clean_group_gap(result.group_gap)
+  if enemy_mult == nil or group_gap == nil or not is_valid_troop_delta(result.troop_delta) then
     return nil
   end
 
@@ -43,6 +52,7 @@ function M.read_live(path)
     seq = seq,
     enemy_mult = enemy_mult,
     troop_delta = result.troop_delta,
+    group_gap = group_gap,
   }
 end
 
@@ -53,7 +63,7 @@ function M.poll(K, ctx)
   local path = base .. "/mods/kr_mod_live.lua"
   local live = M.read_live(path)
   if type(K.live) ~= "table" then
-    K.live = { speed = 1, enemy_mult = 1, troop_delta = 0 }
+    K.live = { speed = 1, enemy_mult = 1, troop_delta = 0, group_gap = 100 }
   end
 
   if live then
@@ -74,6 +84,11 @@ function M.poll(K, ctx)
     end
 
     K.live.troop_delta = live.troop_delta
+
+    if live.group_gap ~= K.live.group_gap then
+      if ctx and ctx.log then ctx.log("group gaps " .. tostring(live.group_gap) .. "%") end
+      K.live.group_gap = live.group_gap
+    end
   end
 
   if type(K.pollers) == "table" then
@@ -100,7 +115,7 @@ function M.install(K, ctx)
   K.ctx = ctx
 
   if type(K.live) ~= "table" then
-    K.live = { speed = 1, enemy_mult = 1, troop_delta = 0 }
+    K.live = { speed = 1, enemy_mult = 1, troop_delta = 0, group_gap = 100 }
   end
   if type(K.pollers) ~= "table" then
     K.pollers = {}
@@ -115,6 +130,7 @@ function M.install(K, ctx)
     K.live.speed = live.speed
     K.live.enemy_mult = live.enemy_mult
     K.live.troop_delta = live.troop_delta
+    K.live.group_gap = live.group_gap
     K.file_speed = live.speed
     K.file_seq = live.seq
     if game then game.DBG_TIME_MULT = live.speed end

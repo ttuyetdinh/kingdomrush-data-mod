@@ -2,6 +2,7 @@ import pytest
 
 from krmod.model.stepping import (
     ENEMY_VALUES,
+    clamp_gap,
     clamp_troop,
     parse_number,
     parse_pct,
@@ -9,6 +10,7 @@ from krmod.model.stepping import (
     step_cell,
     step_enemy,
     step_pct,
+    step_gap,
     step_troop,
 )
 
@@ -99,3 +101,10 @@ def test_troop_shift_steps_by_ten_within_bounds():
     assert step_troop(0, 1, shift=True) == 10
     assert step_troop(95, 1, shift=True) == 100
     assert step_troop(-5, -1, shift=True) == -10
+
+
+def test_gap_steps_by_ten_percent_within_bounds():
+    assert clamp_gap(62.5) == 63 and clamp_gap(0) == 10 and clamp_gap(9999) == 500
+    assert step_gap(100, 1) == 110 and step_gap(100, -1) == 90
+    assert step_gap(100, 1, shift=True) == 200 and step_gap(100, -1, shift=True) == 10
+    assert step_gap(10, -1) == 10 and step_gap(490, 1, shift=True) == 500

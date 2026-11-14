@@ -63,7 +63,10 @@ def enemy_h(harness):
           })
         end
       end
-      local sys = { wave_spawn_tsv = { cmd_fns = { spawn = stub_spawn } } }
+      local function stub_wait(store, cmd)
+        if cmd.wait_time and cmd.wait_time > 0 then table.insert(WAITS, cmd.wait_time) end
+      end
+      local sys = { wave_spawn_tsv = { cmd_fns = { spawn = stub_spawn, wait = stub_wait } } }
       package.loaded["systems"] = sys
       package.preload["systems"] = function() return sys end
       -- two roads like the game's: a middle rail and two edge rails 6 apart from it
@@ -444,3 +447,26 @@ def test_quarter_boss_and_carrier_never_dropped(enemy_h):
     assert spawn(enemy_h, ["boss"], 0.25) == "1"
     assert spawn(enemy_h, ["a"], 0.25, gems_idx=(1,)) == "1"
     assert enemy_h.lua("return SPAWN_CALLS[1].gems_per_wave") == "2.5"
+
+
+def test_group_gap_scales_the_waves_waits_without_changing_its_data(enemy_h):
+    enemy_h.lua("KRMOD.live.group_gap = 50")
+    assert spawn(enemy_h, ["a"], 1, wait=12) == "1"
+    assert enemy_h.lua("return WAITS[1]") == "6"
+    assert enemy_h.lua("return LAST_CMD.wait_time") == "12"  # the wave's own data stays
+    enemy_h.lua("""
+      WAITS = {}
+      local cmd = { wait_time = 1 }
+      require("systems").wave_spawn_tsv.cmd_fns.wait({}, cmd)
+      LAST_WAIT = cmd
+    """)
+    assert enemy_h.lua("return WAITS[1] .. ',' .. LAST_WAIT.wait_time") == "0.5,1"
+
+
+def test_group_gap_applies_with_extra_enemies_and_from_the_next_command(enemy_h):
+    enemy_h.lua("KRMOD.live.group_gap = 200")
+    assert spawn(enemy_h, ["a"], 3, wait=2) == "3"
+    assert enemy_h.lua("return WAITS[1]") == "4"  # the group's wait; rows of copies keep 0.25
+    enemy_h.lua("KRMOD.live.group_gap = 100")
+    spawn(enemy_h, ["a"], 3, wait=2)
+    assert enemy_h.lua("return WAITS[1]") == "2"

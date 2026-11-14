@@ -19,6 +19,10 @@ TROOP_MIN = -10
 TROOP_MAX = 100
 # Extra hero skill points and skill tree points are added to the game's own totals.
 EXTRA_POINTS_MAX = 999
+# Gaps between groups of a wave, in percent of the game's own waits.
+GAP_MIN = 10
+GAP_MAX = 500
+GAP_STEP = 10
 
 _ASCII_NUMBER_RE = re.compile(r"^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?$")
 
@@ -109,3 +113,14 @@ def clamp_points(value: float) -> int:
 
 def step_points(current: int, direction: int, shift: bool = False) -> int:
     return clamp_points(current + direction * (SHIFT_FACTOR if shift else 1))
+
+
+def clamp_gap(value: float) -> int:
+    """Whole percent of the game's gaps between groups, half up, clamped to GAP_MIN..GAP_MAX."""
+    whole = int(Decimal(str(value)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+    return min(GAP_MAX, max(GAP_MIN, whole))
+
+
+def step_gap(current: int, direction: int, shift: bool = False) -> int:
+    """Gaps box step: 10% (100% with Shift)."""
+    return clamp_gap(current + direction * GAP_STEP * (SHIFT_FACTOR if shift else 1))
