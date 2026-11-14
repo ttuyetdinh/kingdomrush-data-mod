@@ -40,6 +40,7 @@ class TopBar:
         self.speed_buttons: dict[int, ui.button] = {}
         self.enemy_box: LiveBox
         self.troop_box: LiveBox
+        self.gap_box: LiveBox
         self._build()
 
     def _build(self) -> None:
@@ -101,9 +102,10 @@ class TopBar:
                         self.speed_buttons[s] = btn
                 self._update_speed_buttons()
 
-                # Live enemy multiplier and troop count boxes
+                # Live enemy multiplier, troop count and wave gap boxes
                 self.enemy_box = LiveBox(self.state, "enemy_mult", "enemy-mult", self.on_refresh, dark=True)
                 self.troop_box = LiveBox(self.state, "troop_delta", "troop-delta", self.on_refresh, dark=True)
+                self.gap_box = LiveBox(self.state, "group_gap", "group-gap", self.on_refresh, dark=True)
 
                 # Right end: pushed to the right of row 2
                 with ui.row().classes("items-center gap-1.5 flex-nowrap shrink-0 ml-auto"):
@@ -318,6 +320,7 @@ class TopBar:
         self._update_speed_buttons()
         self.enemy_box.refresh()
         self.troop_box.refresh()
+        self.gap_box.refresh()
 
     def _update_speed_buttons(self) -> None:
         curr_speed = self.state.profile.live.speed

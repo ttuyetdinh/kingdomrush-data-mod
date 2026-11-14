@@ -240,11 +240,15 @@ class AppState:
         speed: int | None = None,
         enemy_mult: float | None = None,
         troop_delta: int | None = None,
+        group_gap: int | None = None,
     ) -> None:
-        new_speed = self.profile.live.speed if speed is None else speed
-        new_enemy = self.profile.live.enemy_mult if enemy_mult is None else enemy_mult
-        new_troop = self.profile.live.troop_delta if troop_delta is None else troop_delta
-        test_live = LiveSettings(speed=new_speed, enemy_mult=new_enemy, troop_delta=new_troop)
+        old = self.profile.live
+        test_live = LiveSettings(
+            speed=old.speed if speed is None else speed,
+            enemy_mult=old.enemy_mult if enemy_mult is None else enemy_mult,
+            troop_delta=old.troop_delta if troop_delta is None else troop_delta,
+            group_gap=old.group_gap if group_gap is None else group_gap,
+        )
         test_live.validate()
         self.profile.live = test_live
         self.store.save(self.profile)

@@ -76,15 +76,15 @@ def test_data_file_loads_in_lua(tmp_game, tree, lua):
 
 
 def test_live_file(tmp_game):
-    write_live(tmp_game, LiveSettings(2, 2.0, -3))
+    write_live(tmp_game, LiveSettings(2, 2.0, -3, 50))
     assert (
         (tmp_game.mods_dir / "kr_mod_live.lua").read_bytes()
-        == b"return { speed = 2, enemy_mult = 2.0, troop_delta = -3 }\n"
+        == b"return { speed = 2, enemy_mult = 2.0, troop_delta = -3, group_gap = 50 }\n"
     )
     write_live(tmp_game, LiveSettings(1, 0.25, 0))
     assert (
         (tmp_game.mods_dir / "kr_mod_live.lua").read_text().strip()
-        == "return { speed = 1, enemy_mult = 0.25, troop_delta = 0 }"
+        == "return { speed = 1, enemy_mult = 0.25, troop_delta = 0, group_gap = 100 }"
     )
 
 

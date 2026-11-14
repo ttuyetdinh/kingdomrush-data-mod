@@ -193,7 +193,7 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
                 "text-base font-semibold text-slate-800"
             )
             ui.label(
-                "Mirrors the top bar. Both take effect in the running game right away."
+                "Mirrors the top bar. All take effect in the running game right away."
             ).classes("text-xs text-slate-500")
 
             # Enemy multiplier
@@ -211,6 +211,16 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
                     "Adds or removes soldiers per barracks, from -10 to +100 (Shift with the arrows "
                     "steps by 10): 0 is the default, +1 is one more, -1 is one fewer. A large minus "
                     "can leave a barracks empty."
+                ).classes("text-xs text-slate-500")
+
+            # Gaps between groups of a wave
+            with ui.column().classes("w-full gap-1"):
+                LiveBox(state, "group_gap", "rules-group-gap", on_refresh)
+                ui.label(
+                    "The waits between groups of enemies within a wave, in percent of the game's "
+                    "own waits, from 10% to 500% (arrows step by 10%, Shift by 100%): 100% is the "
+                    "default, 50% brings each group in twice as soon, 200% takes twice as long. "
+                    "The countdown to the next wave stays the game's."
                 ).classes("text-xs text-slate-500")
         # Section 4: Stale Changes (only rendered when non-empty)
         stale_paths = state.stale()

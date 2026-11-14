@@ -1,5 +1,6 @@
 -- KrGenesis enemy count multiplier module.
--- Wraps systems.wave_spawn_tsv.cmd_fns.spawn to scale wave spawns by KRMOD.live.enemy_mult.
+-- Wraps systems.wave_spawn_tsv.cmd_fns.spawn to scale wave spawns by KRMOD.live.enemy_mult, and
+-- scales the wave's waits by KRMOD.live.group_gap (see M.paced).
 -- Extra copies walk side by side: each row fills the road's lines (the original's line first),
 -- and the next row follows EXTRA_SPACING seconds later.
 --
@@ -358,7 +359,21 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
   end
 end
 
--- Wrap systems.wave_spawn_tsv.cmd_fns.spawn once.
+-- The wave file's waits (each spawn row's wait before it, and wait rows) in percent of the
+-- game's: K.live.group_gap. Read on every command, so a change applies from the next one. The
+-- wave command's countdown to the next wave is not touched. Returns cmd or a scaled copy (the
+-- wave data itself is never changed).
+function M.paced(K, cmd)
+  local gap = K and type(K.live) == "table" and K.live.group_gap or 100
+  if type(gap) ~= "number" or gap == 100 or type(cmd) ~= "table" then return cmd end
+  local wait_time = cmd.wait_time
+  if type(wait_time) ~= "number" or wait_time <= 0 then return cmd end
+  local paced = shallow_copy(cmd)
+  paced.wait_time = wait_time * gap / 100
+  return paced
+end
+
+-- Wrap systems.wave_spawn_tsv.cmd_fns.spawn (and .wait) once.
 function M.install(K, ctx)
   if K then
     K.enemy_acc = {}
@@ -380,9 +395,11 @@ function M.install(K, ctx)
   if not K.installed then K.installed = {} end
   K.installed.enemies = true
 
-  local original = systems.wave_spawn_tsv.cmd_fns.spawn
+  local cmd_fns = systems.wave_spawn_tsv.cmd_fns
+  local original = cmd_fns.spawn
 
-  systems.wave_spawn_tsv.cmd_fns.spawn = function(store, cmd, ...)
+  cmd_fns.spawn = function(store, cmd, ...)
+    cmd = M.paced(K, cmd)
     local mult = 1
     if K and K.live and type(K.live.enemy_mult) == "number" then
       mult = K.live.enemy_mult
@@ -397,6 +414,13 @@ function M.install(K, ctx)
       if ctx and ctx.log then
         ctx.log("error enemies: " .. tostring(err))
       end
+    end
+  end
+
+  local original_wait = cmd_fns.wait
+  if type(original_wait) == "function" then
+    cmd_fns.wait = function(store, cmd, ...)
+      return original_wait(store, M.paced(K, cmd), ...)
     end
   end
 end

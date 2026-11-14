@@ -85,6 +85,12 @@ def test_read_live_validation(harness):
     for bad in ("1.5", "101", "-11", "'2'"):
         harness.write_raw("kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = 1, troop_delta = {bad} }}")
         assert harness.lua(check) == "false", bad
+    # group gap not a whole number in 10..500 (a file without one means 100)
+    for bad in ("9", "501", "50.5", "'50'"):
+        harness.write_raw(
+            "kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = 1, troop_delta = 0, group_gap = {bad} }}"
+        )
+        assert harness.lua(check) == "false", bad
     # the old troop_mult field alone is not enough
     harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 1, troop_mult = 1 }")
     assert harness.lua(check) == "false"
@@ -235,3 +241,16 @@ def test_troop_delta_and_enemy_mult_copied_into_live(harness):
     harness.lua("NOW = 2; game:update(0.03)")
     assert harness.lua("return KRMOD.live.troop_delta") == "-3"
     assert harness.lua("return KRMOD.live.enemy_mult") == "0.25"
+
+
+def test_group_gap_copied_into_live(harness):
+    setup(harness)
+    assert harness.lua("return KRMOD.live.group_gap") == "100"
+    harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 1, troop_delta = 0, group_gap = 50 }")
+    harness.lua("NOW = 1; game:update(0.03)")
+    assert harness.lua("return KRMOD.live.group_gap") == "50"
+    assert "group gaps 50%" in harness.log()
+    # a live file from before the Gaps box: the game's own gaps
+    harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 1, troop_delta = 0 }")
+    harness.lua("NOW = 2; game:update(0.03)")
+    assert harness.lua("return KRMOD.live.group_gap") == "100"
