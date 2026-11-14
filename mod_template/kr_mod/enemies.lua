@@ -1,10 +1,18 @@
 -- KrGenesis enemy count multiplier module.
 -- Wraps systems.wave_spawn_tsv.cmd_fns.spawn to scale wave spawns by KRMOD.live.enemy_mult.
--- Extra copies walk side by side: each row fills every lane of the road (the original's lane
--- first), and the next row follows EXTRA_SPACING seconds later.
+-- Extra copies walk side by side: each row fills the road's lines (the original's line first),
+-- and the next row follows EXTRA_SPACING seconds later.
+--
+-- Every road of the game has 3 rails: 1 in the middle, 2 and 3 on the edges. When copies are
+-- needed, two inner rails are added to every road of the level, a third of the way from the
+-- middle to each edge, so a row is 4 evenly spaced lines: 2, INNER[1], INNER[2], 3. Their keys
+-- are far above 3 so #P.paths[pi] stays 3: the game's own "random rail" picks and loops never
+-- see them. Only rows walk on them: the copies, and an original that has copies (one from the
+-- middle rail or a random rail joins its row on one of the 4 lines).
 local M = {}
 
 M.EXTRA_SPACING = 0.25
+M.INNER = { 101, 102 }
 
 local ok_bit, bit_lib = pcall(require, "bit")
 local bit = bit or (ok_bit and bit_lib)
@@ -78,19 +86,63 @@ function M.plan(K, mult, kind, key)
   return n
 end
 
--- Lanes of the road an entry spawns on (the game's sub-paths of P.paths[pi], at least 1) and the
--- lane the original takes: its fixed lane, or a random one for "*" as the game itself would pick.
-function M.lanes(P, o)
-  local path = type(P) == "table" and type(P.paths) == "table" and P.paths[o.pi] or nil
-  local lanes = type(path) == "table" and #path or 1
-  if lanes < 1 then lanes = 1 end
-  local base = o.spi
-  if base == "*" then
-    base = math.random(lanes)
-  elseif type(base) ~= "number" or base < 1 or base > lanes or base ~= math.floor(base) then
-    return 1, nil  -- unknown lane: keep the entry as it is and spawn copies one behind another
+local function node_count(rail)
+  return type(rail) == "table" and #rail or 0
+end
+
+-- Add the inner rails to every road of P once per level (P.paths is a new table each level).
+-- All or nothing: an enemy keeps its rail number when it walks onto the next road, so every road
+-- needs them. Returns true when the roads have them.
+function M.add_inner_rails(P)
+  local paths = type(P) == "table" and P.paths or nil
+  if type(paths) ~= "table" or #paths == 0 then return false end
+  if M._railed == paths then return true end
+  for pi = 1, #paths do
+    local road = paths[pi]
+    if type(road) ~= "table" then return false end
+    local n = node_count(road[1])
+    if n == 0 or node_count(road[2]) ~= n or node_count(road[3]) ~= n then return false end
   end
-  return lanes, base
+  for pi = 1, #paths do
+    local mid, left, right = paths[pi][1], paths[pi][2], paths[pi][3]
+    local inner_left, inner_right = {}, {}
+    for ni = 1, #mid do
+      local c, l, r = mid[ni], left[ni], right[ni]
+      inner_left[ni] = { x = c.x + (l.x - c.x) / 3, y = c.y + (l.y - c.y) / 3 }
+      inner_right[ni] = { x = c.x + (r.x - c.x) / 3, y = c.y + (r.y - c.y) / 3 }
+    end
+    paths[pi][M.INNER[1]] = inner_left
+    paths[pi][M.INNER[2]] = inner_right
+  end
+  M._railed = paths
+  return true
+end
+
+-- The lines of one row (left to right) for an entry, and the line the original takes. With the
+-- inner rails: 2, INNER[1], INNER[2], 3, and an original on the middle rail or on "*" takes a
+-- random one of them. Without them: the road's rails 1..n, "*" picking one as the game would.
+-- An unknown rail gives no row: copies then spawn one behind another on the original's rail.
+function M.lanes(P, o)
+  local road = type(P) == "table" and type(P.paths) == "table" and P.paths[o.pi] or nil
+  local rails = type(road) == "table" and #road or 1
+  if rails < 1 then rails = 1 end
+  local spi = o.spi
+  if spi ~= "*" and (type(spi) ~= "number" or spi < 1 or spi > rails or spi ~= math.floor(spi)) then
+    return nil, nil
+  end
+  local row
+  if rails == 3 and M.add_inner_rails(P) then
+    row = { 2, M.INNER[1], M.INNER[2], 3 }
+    if spi == "*" or spi == 1 then spi = row[math.random(#row)] end
+  else
+    row = {}
+    for i = 1, rails do row[i] = i end
+    if spi == "*" then spi = math.random(rails) end
+  end
+  for i, lane in ipairs(row) do
+    if lane == spi then return row, i end
+  end
+  return nil, nil
 end
 
 -- Spawn one row of copies of o at the same moment, one per given lane, without touching the
@@ -148,11 +200,14 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
         store.current_spawn_idx = (store.current_spawn_idx or 0) + 1
       end
     elseif n >= 1 then
-      local lanes, base = M.lanes(P, o)
+      -- A single enemy keeps its rail; copies get a row of lines (none: one behind another).
+      local lanes, base = nil, nil
+      if n > 1 then lanes, base = M.lanes(P, o) end
+      local width = lanes and #lanes or 1
       local first = o
-      if n > 1 and base then
+      if base then
         first = shallow_copy(o)
-        first.spi = base
+        first.spi = lanes[base]
       end
       local sub_cmd = shallow_copy(cmd)
       sub_cmd.spawns = { first }
@@ -168,11 +223,11 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
         original(store, sub_cmd, ...)
       end
 
-      -- Copy k (1 .. n-1) takes lane base+k, wrapping; copies of one row spawn together.
+      -- Copy k (1 .. n-1) takes the line base+k of the row, wrapping; a row spawns together.
       local row, row_lanes = 0, {}
       for k = 1, n - 1 do
         if store.force_next_wave then break end
-        local k_row = math.floor(k / lanes)
+        local k_row = math.floor(k / width)
         if k_row ~= row then
           if #row_lanes > 0 then spawn_row(original, store, cmd, o, row_lanes, ...) end
           row, row_lanes = k_row, {}
@@ -181,7 +236,7 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
           end
           if store.force_next_wave then break end
         end
-        row_lanes[#row_lanes + 1] = base and ((base - 1 + k) % lanes) + 1 or false
+        row_lanes[#row_lanes + 1] = base and lanes[((base - 1 + k) % width) + 1] or false
       end
       if #row_lanes > 0 and not store.force_next_wave then
         spawn_row(original, store, cmd, o, row_lanes, ...)
