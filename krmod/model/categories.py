@@ -15,8 +15,11 @@ _HP = frozenset({"hp", "hp_max", "hp_base", "health", "min_hp_max", "max_hp_max"
 # How fast a unit walks (enemies, heroes, soldiers); factors and attack speeds stay out.
 _MOVING_SPEED = frozenset({"speed", "movement_speed"})
 
-_DAMAGE_EXCLUDE = ("type", "radius", "factor", "every", "cap", "inc", "mult")
-_RANGE_EXCLUDE = ("factor", "inc", "unit", "offset")
+# damage_red is a damage reduction (a debuff factor and its duration), not damage dealt.
+_DAMAGE_EXCLUDE = ("type", "radius", "factor", "every", "cap", "inc", "mult", "damage_red", "duration")
+# Retarget ranges are how far a shot may jump to a new enemy when its target dies, not reach;
+# "ranged" names ranged attacks (basic_ranged_attack_ptg), not a distance.
+_RANGE_EXCLUDE = ("factor", "inc", "unit", "offset", "retarget", "ranged")
 _COOLDOWN_EXCLUDE = ("factor", "inc", "decrease")
 
 
@@ -35,6 +38,10 @@ def category_of(path: KeyPath) -> str | None:
     if "damage" in key and not _any_in(_DAMAGE_EXCLUDE, key):
         return "All damage"
     if ("range" in key or "radius" in key) and not _any_in(_RANGE_EXCLUDE, key):
+        # A minimum range is a blind spot (the sniper cannot shoot closer than min_range):
+        # raising it would shrink what a unit reaches, so All range leaves it alone.
+        if key.startswith("min_") or key.endswith("_min"):
+            return None
         return "All range"
     if "cooldown" in key and not _any_in(_COOLDOWN_EXCLUDE, key):
         return "All cooldowns"

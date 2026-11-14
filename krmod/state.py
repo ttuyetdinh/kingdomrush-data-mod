@@ -7,7 +7,7 @@ from typing import Sequence
 from krmod.model.categories import CATEGORY_NAMES, category_of
 from krmod.model.grouping import GroupIndex
 from krmod.model.rows import StatRow, build_rows
-from krmod.model.scaling import common_pct, scale, warn
+from krmod.model.scaling import UNLIMITED, common_pct, scale, warn
 from krmod.model.stepping import parse_number
 from krmod.model.values import BalanceTree, KeyPath, Leaf, path_str
 from krmod.modgen.launcher import RunOutcome, apply_and_run
@@ -176,7 +176,8 @@ class AppState:
     ) -> list[KeyPath]:
         paths: list[KeyPath] = []
         for p in self.index.paths_of(card_id):
-            if not self._scalable(p):
+            # "No limit" stays no limit: scaling 1e+99 changes nothing in game.
+            if not self._scalable(p) or abs(self.original(p)) >= UNLIMITED:
                 continue
             cat = category_of(p)
             if cat is None:
