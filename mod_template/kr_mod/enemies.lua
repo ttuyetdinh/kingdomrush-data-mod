@@ -4,15 +4,14 @@
 -- and the next row follows EXTRA_SPACING seconds later.
 --
 -- Every road of the game has 3 rails: 1 in the middle, 2 and 3 on the edges (about 40 px
--- apart). A row has more lines the more enemies there are (lines_for): 3, 4, 5 or 6, evenly
--- spaced. 3 and 4 lines span the road from edge to edge; 5 and 6 lines keep the 4 lines' gap
--- (a third of the road) and so reach past the edges, but only over walkable ground of the
--- level's grid: where the ground beside the road is not walkable, the row narrows there. Lines
--- other than the game's rails are rails the mod adds to every road of the level when copies
--- first need them. Their keys are far above 3 so #P.paths[pi] stays 3: the game's own "random
--- rail" picks and loops never see them. Only rows walk on them: the copies, and an original
--- that has copies (one on a rail outside the row, or on a random rail, joins its row on a
--- random line).
+-- apart). A row has more lines the more enemies there are (lines_for): 2 to 7, GAP of the road
+-- apart. Rows of 2 and 3 lines are the game's rails; wider rows reach past the edges, but only
+-- over walkable ground of the level's grid: where the ground beside the road is not walkable,
+-- the row narrows there. Lines other than the game's rails are rails the mod adds to every
+-- road of the level when copies first need them. Their keys are far above 3 so #P.paths[pi]
+-- stays 3: the game's own "random rail" picks and loops never see them. Only rows walk on
+-- them: the copies, and an original that has copies (one on a rail outside the row, or on a
+-- random rail, joins its row on a random line).
 local M = {}
 
 M.EXTRA_SPACING = 0.25
@@ -93,19 +92,24 @@ local function node_count(rail)
   return type(rail) == "table" and #rail or 0
 end
 
--- Lines per row for an Enemies multiplier: more enemies, more lines (shorter waves). Below x30
--- a row is the game's own 3 rails (edge, middle, edge), so no inner rails are added.
+-- Lines per row for an Enemies multiplier: more enemies, more lines (shorter waves).
 function M.lines_for(mult)
-  if mult >= 70 then return 6 end
-  if mult >= 50 then return 5 end
-  if mult >= 30 then return 4 end
-  return 3
+  if mult >= 70 then return 7 end
+  if mult >= 50 then return 6 end
+  if mult >= 30 then return 5 end
+  if mult >= 10 then return 4 end
+  if mult >= 5 then return 3 end
+  return 2
 end
 
--- How far a row of `lines` lines reaches, in road half-widths from the middle: rows up to 4
--- lines span the road edge to edge (1); wider rows keep the 4 lines' gap of a third of the road.
+-- Gap between neighbouring lines of a row, as a share of the road's width (rail 2 to rail 3,
+-- about 40 px, so about 16 px).
+M.GAP = 0.4
+
+-- How far a row of `lines` lines reaches, in road half-widths from the middle: at least the
+-- road's edges (1), so 2 and 3 lines are the game's rails; wider rows keep GAP between lines.
 function M.spread(lines)
-  return math.max(1, (lines - 1) / 3)
+  return math.max(1, M.GAP * (lines - 1))
 end
 
 -- The rails of a row of `lines` lines, left to right, with each one's place across the road
@@ -159,11 +163,16 @@ local function reach(GR, mid, edge, spread)
     if spread > 1 and half > 0 and base and base ~= 0 and bit.band(base, NOWALK) == 0 then
       base = bit.band(base, WALK_MASK)
       local need = (spread - 1) * half
-      local s = 2
-      while s <= need and bit.band(cell(GR, e.x + dx / half * s, e.y + dy / half * s), WALK_MASK) == base do
-        s = s + 2
+      local function walkable(d)
+        return bit.band(cell(GR, e.x + dx / half * d, e.y + dy / half * d), WALK_MASK) == base
       end
-      r = math.min(spread, 1 + math.min(s - 2, need) / half)
+      -- walk out in 2 px steps, then check the full reach itself (need is rarely a whole step)
+      local walked, s = 0, 2
+      while s < need and walkable(s) do
+        walked, s = s, s + 2
+      end
+      if s >= need and walkable(need) then walked = need end
+      r = 1 + walked / half
     end
     raw[ni] = r
   end
