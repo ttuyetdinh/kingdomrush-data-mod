@@ -7,7 +7,8 @@
 -- needed, two inner rails are added to every road of the level, a third of the way from the
 -- middle to each edge, so a row is 4 evenly spaced lines: 2, INNER[1], INNER[2], 3. Their keys
 -- are far above 3 so #P.paths[pi] stays 3: the game's own "random rail" picks and loops never
--- see them, and only the copies walk on them.
+-- see them. Only rows walk on them: the copies, and an original that has copies (one from the
+-- middle rail or a random rail joins its row on one of the 4 lines).
 local M = {}
 
 M.EXTRA_SPACING = 0.25
