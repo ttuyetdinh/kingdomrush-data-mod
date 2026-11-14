@@ -40,6 +40,8 @@ class Shell:
         self.state = state
         self.current_tab: str = "Towers"
         self.active_card_id: str | None = None
+        # Folded table sections, (card id, section key), kept while this page lives.
+        self.folded: set[tuple[str, str]] = set()
         self.topbar: TopBar
         self.cards_col: CardsColumn
         self.left_col: ui.element
@@ -64,7 +66,7 @@ class Shell:
                 with ui.column().classes("gap-0.5"):
                     ui.label(card.title).classes("text-2xl font-bold text-slate-900").mark("editor-title")
 
-        table.render_card(self.state, card_id, self.right_col, self.refresh)
+        table.render_card(self.state, card_id, self.right_col, self.refresh, self.folded)
 
     def rerender_right(self) -> None:
         """Re-render the right editor region: Rules if on Rules tab, else active card or placeholder."""

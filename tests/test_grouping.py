@@ -10,68 +10,70 @@ def test_every_number_has_one_home(tree):
     assert (sc.total, sc.placed, sc.unplaced) == (5857, 5857, [])
 
 
-def test_tower_and_skill_placement():
-    p = place(("towers", "archers", "price", 1))
-    assert p.home.id == "towers/archers" and p.extra == ()
-    p = place(("towers", "knights", "skill_a", "cooldown", 1))
-    assert p.home.id == "towers/knights"
-    assert [c.id for c in p.extra] == ["skills/towers/knights"]
+def test_skills_stay_in_their_owners_card():
+    assert place(("towers", "archers", "price", 1)).id == "towers/archers"
+    assert place(("towers", "knights", "skill_a", "cooldown", 1)).id == "towers/knights"
+    assert place(("heroes", "hero_bolin", "ultimate", "cooldown", 1)).id == "heroes/hero_bolin"
+    k = place(("kr1_mode", "towers", "tesla", "skill_x", "damage", 1))
+    assert k.id == "towers/kr1/tesla"
 
 
 def test_troops_and_specials():
-    assert place(("towers", "knights", "soldier", "hp_max", 1)).home.tab == "Troops"
-    assert place(("specials", "towers", "stage_07_barn", "soldier", "hp_max")).home.tab == "Troops"
-    assert place(("powers", "reinforcements", "special_soldier", "hp_max")).home.tab == "Troops"
+    assert place(("towers", "knights", "soldier", "hp_max", 1)).tab == "Troops"
+    assert place(("specials", "towers", "stage_07_barn", "soldier", "hp_max")).tab == "Troops"
+    assert place(("powers", "reinforcements", "special_soldier", "hp_max")).tab == "Troops"
     assert (
-        place(("specials", "towers", "stage_07_barn", "max_soldiers")).home.id
+        place(("specials", "towers", "stage_07_barn", "max_soldiers")).id
         == "stages/towers/stage_07_barn"
     )
 
 
 def test_heroes_spells_enemies():
-    assert place(("heroes", "hero_bolin", "stats", "hp")).home.id == "heroes/hero_bolin"
-    assert place(("upgrades", "power_rain_of_fire", "x")).home.id == "skills/powers/rain_of_fire"
+    assert place(("heroes", "hero_bolin", "stats", "hp")).id == "heroes/hero_bolin"
+    s = place(("upgrades", "power_rain_of_fire", "x"))
+    assert (s.id, s.tab) == ("spells/rain_of_fire", "Spells")
+    assert place(("powers", "rain_of_fire", "damage", 1)).id == "spells/rain_of_fire"
     e = place(("enemies", "demons", "demon_lord", "hp"))
-    assert (e.home.id, e.home.group) == ("enemies/demons/demon_lord", "Demons")
-    assert place(("enemies", "jt_boss", "hp")).home.group == "Bosses"
+    assert (e.id, e.group) == ("enemies/demons/demon_lord", "Demons")
+    assert place(("enemies", "jt_boss", "hp")).group == "Bosses"
 
 
 def test_unknown_goes_to_other():
-    assert place(("kr1_mode", "mystery", 1)).home.id == "other/Towers"
+    assert place(("kr1_mode", "mystery", 1)).id == "other/Towers"
 
 
 def test_titles_and_groups():
-    assert place(("towers", "archers", "price", 1)).home.title == "Archers"
-    assert place(("towers", "archers", "price", 1)).home.group == "Towers"
-    assert place(("towers", "knights", "price", 1)).home.title == "Knights"
-    assert place(("towers", "common", "x")).home.title == "Common"
-    assert place(("towers", "upgrades", "x", "y")).home.title == "Tower upgrades"
-    k = place(("kr1_mode", "towers", "barracks", "price", 1)).home
+    assert place(("towers", "archers", "price", 1)).title == "Archers"
+    assert place(("towers", "archers", "price", 1)).group == "Towers"
+    assert place(("towers", "knights", "price", 1)).title == "Knights"
+    assert place(("towers", "common", "x")).title == "Common"
+    assert place(("towers", "upgrades", "x", "y")).title == "Tower upgrades"
+    k = place(("kr1_mode", "towers", "barracks", "price", 1))
     assert (k.id, k.title, k.group) == ("towers/kr1/barracks", "Classic Barracks", "Classic towers")
-    h = place(("heroes", "hero_bolin", "stats", "hp")).home
+    h = place(("heroes", "hero_bolin", "stats", "hp"))
     assert (h.title, h.group, h.tab) == ("Bolin", "Heroes", "Heroes")
-    d = place(("enemies", "demons", "demon_lord", "hp", 1)).home
+    d = place(("enemies", "demons", "demon_lord", "hp", 1))
     assert d.title == "Demon lord"
-    sk = place(("heroes", "hero_bolin", "skill_a", "cooldown", 1))
-    assert sk.extra[0].tab == "Skills" and sk.extra[0].title == "Bolin"
-    t = place(("towers", "knights", "soldier", "hp_max", 1)).home
+    t = place(("towers", "knights", "soldier", "hp_max", 1))
     assert (t.id, t.title, t.group) == ("troops/towers.knights.soldier", "Knights soldier", "Towers")
-    t = place(("kr1_mode", "towers", "barracks", "soldier", "hp")).home
+    t = place(("kr1_mode", "towers", "barracks", "soldier", "hp"))
     assert (t.title, t.group) == ("Classic Barracks soldier", "Classic towers")
-    t = place(("powers", "reinforcements", "special_soldier", "hp_max")).home
+    t = place(("powers", "reinforcements", "special_soldier", "hp_max"))
     assert (t.title, t.group) == ("Reinforcements special soldier", "Spells")
-    assert place(("kr1_mode", "upgrades", "archers", "x", "y")).home.title == "Classic upgrades"
-    assert place(("specials", "stage_01", "king", "x")).home.id == "stages/stage_01"
-    assert place(("items", "gold", "gold")).home.id == "items/gold"
+    u = place(("kr1_mode", "upgrades", "archers", "x", "y"))
+    assert (u.id, u.tab, u.title, u.group) == (
+        "towers/kr1_upgrades", "Towers", "Classic upgrades", "Classic towers"
+    )
+    assert place(("specials", "stage_01", "king", "x")).id == "stages/stage_01"
+    assert place(("items", "gold", "gold")).id == "items/gold"
 
 
 def test_prefix_is_a_leading_path_of_each_leaf(tree):
     idx = GroupIndex.build(tree)
     for p in tree.leaves:
-        pl = idx.placement(p)
-        for card in (pl.home, *pl.extra):
-            if card.prefix and not (card.id.startswith("skills/powers/") and p[0] == "upgrades"):
-                assert p[: len(card.prefix)] == card.prefix, (p, card)
+        card = idx.card_of(p)
+        if card.prefix and not (card.id.startswith("spells/") and p[0] == "upgrades"):
+            assert p[: len(card.prefix)] == card.prefix, (p, card)
 
 
 def test_cards_listing_and_paths(tree):
@@ -81,8 +83,11 @@ def test_cards_listing_and_paths(tree):
     assert "Demon lord" in [c.title for c in idx.cards("Enemies")]
     paths = idx.paths_of("towers/knights")
     assert paths == sorted(paths, key=lambda p: tuple((isinstance(s, str), s if isinstance(s, str) else "", s if isinstance(s, int) else 0) for s in p))
-    assert ("towers", "knights", "skill_a", "price", 1) in idx.paths_of("skills/towers/knights")
     assert ("towers", "knights", "skill_a", "price", 1) in paths
+    assert "Classic upgrades" in titles
+    assert [c.title for c in idx.cards("Spells")] and all(
+        c.group == "Spells" for c in idx.cards("Spells")
+    )
     assert idx.card("towers/archers").prefix == ("towers", "archers")
 
 

@@ -5,13 +5,13 @@ from typing import Awaitable, Callable
 
 from nicegui import ui
 
-UI_TABS: tuple[str, ...] = (
-    "Towers", "Troops", "Heroes", "Skills", "Enemies", "Items", "Stages", "Rules"
-)
+from krmod.model.grouping_rules import TABS
 from krmod.profiles import ProfileError, slug
 from krmod.state import AppState
 from krmod.ui import gamefolder
 from krmod.ui.livebox import LiveBox
+
+UI_TABS: tuple[str, ...] = (*TABS, "Rules")
 
 
 class TopBar:

@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .grouping import Card
+from .grouping_rules import is_skill_segment
 from .values import BalanceTree, KeyPath, is_enum_key
 
 HERO_BARS_LABEL = "Hero screen bars"
@@ -21,6 +22,7 @@ class StatRow:
     cells: tuple[KeyPath | None, ...]
     is_enum: bool
     read_only: bool
+    is_skill: bool = False
 
 
 def friendly_label(key: str) -> str:
@@ -55,6 +57,13 @@ def _group_label(card: Card, group: str) -> str:
     return group
 
 
+def _is_skill_group(card: Card, rel: KeyPath) -> bool:
+    """Rows of a tower's or hero's skills (skill_*, ultimate, talent_*, hero upgrades)."""
+    if card.tab not in ("Towers", "Heroes") or len(rel) < 2:
+        return False
+    return is_skill_segment(rel[0]) or (card.tab == "Heroes" and rel[0] == "upgrades")
+
+
 def build_rows(card: Card, paths: list[KeyPath], tree: BalanceTree) -> list[StatRow]:
     leaves = tree.leaves
     # Parent tables holding an integer-keyed numeric leaf: candidates for level rows.
@@ -75,7 +84,7 @@ def build_rows(card: Card, paths: list[KeyPath], tree: BalanceTree) -> list[Stat
             if all(leaves[parent + (k,)].kind == "num" for k in keys):
                 arrays.add(parent)
 
-    rows: dict[KeyPath, tuple[str, str, str, list[KeyPath | None], bool, bool]] = {}
+    rows: dict[KeyPath, tuple[str, str, str, list[KeyPath | None], bool, bool, bool]] = {}
     for p in paths:
         leaf = leaves[p]
         parent = p[:-1]
@@ -103,6 +112,7 @@ def build_rows(card: Card, paths: list[KeyPath], tree: BalanceTree) -> list[Stat
                 [],
                 enum,
                 enum or leaf.kind != "num",
+                _is_skill_group(card, rel),
             )
             rows[owner] = entry
         cells = entry[3]
@@ -111,8 +121,9 @@ def build_rows(card: Card, paths: list[KeyPath], tree: BalanceTree) -> list[Stat
         cells[slot] = p
 
     out = [
-        StatRow(rid, group, label, tuple(cells), enum, ro)
-        for rid, group, label, cells, enum, ro in rows.values()
+        StatRow(rid, group, label, tuple(cells), enum, ro, skill)
+        for rid, group, label, cells, enum, ro, skill in rows.values()
     ]
-    out.sort(key=lambda r: (r.group != "", r.group, r.id))
+    # The unit's own stats first, then its skill sections, each block sorted by group.
+    out.sort(key=lambda r: (r.is_skill, r.group != "", r.group, r.id))
     return out

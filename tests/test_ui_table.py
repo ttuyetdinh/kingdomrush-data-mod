@@ -270,3 +270,53 @@ async def test_sniper_card_opens_without_error(user):
     user.find("Sniper").click()
     await user.should_see("Sniper")
     await user.should_see("Max range")
+
+
+BASIC = "cell-towers.archers.basic_attack.cooldown.1"
+SKILL = "cell-towers.archers.skill_a.damage_max.1"
+
+
+async def test_row_pct_undo_restores_the_whole_row(user):
+    await user.open("/")
+    user.find("Archers").click()
+    assert _box(user, "row-pct-price").props.get("original") is None
+    _commit(user, PRICE2, "5")  # one typed cell is enough to offer the undo
+    assert _box(user, "row-pct-price").props.get("original") == "100%"
+    _commit(user, "row-pct-price", "50")
+    user.find(marker="row-pct-price").trigger("reset")
+    assert (_val(user, PRICE1), _val(user, PRICE2)) == ("70", "100")
+    assert _box(user, PRICE2).props.get("original") is None
+    pct = _box(user, "row-pct-price")
+    assert (pct.value, pct.props.get("original"), pct.props.get("tone")) == ("100%", None, None)
+
+
+async def test_section_title_folds_its_rows(user):
+    await user.open("/")
+    user.find("Archers").click()
+    user.find(marker="section-basic_attack").click()
+    await user.should_not_see(marker=BASIC)
+    await user.should_see(marker=SKILL)
+    await user.should_see(marker=PRICE1)  # rows without a section stay
+    user.find(marker="section-basic_attack").click()
+    await user.should_see(marker=BASIC)
+
+
+async def test_skills_heading_folds_every_skill_section(user):
+    await user.open("/")
+    user.find("Archers").click()
+    user.find(marker="skills-heading").click()
+    await user.should_not_see(marker=SKILL)
+    await user.should_not_see(marker="section-skill_a")
+    await user.should_see(marker=BASIC)
+    user.find(marker="skills-heading").click()
+    await user.should_see(marker=SKILL)
+
+
+async def test_folds_are_kept_when_switching_cards(user):
+    await user.open("/")
+    user.find("Archers").click()
+    user.find(marker="section-basic_attack").click()
+    user.find("Knights").click()
+    await user.should_see(marker="cell-towers.knights.price.1")
+    user.find("Archers").click()
+    await user.should_not_see(marker=BASIC)

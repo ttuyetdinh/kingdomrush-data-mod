@@ -17,6 +17,8 @@ class PctBox:
     get_pct() returns the current percent, or None when the cells disagree ("mixed").
     set_pct(pct) applies a percent (0..500). Typed text goes through parse_pct, steps through
     step_pct (1%, Shift 10%, a mixed box steps from 100%). on_change() runs after every applied value.
+    With is_changed and reset given, a struck "100%" under the box shows while is_changed() is
+    true; clicking it calls reset(), like the struck game value under a number box.
     """
 
     def __init__(
@@ -28,14 +30,19 @@ class PctBox:
         *,
         classes: str = "w-24",
         dark: bool = False,
+        is_changed: Callable[[], bool] | None = None,
+        reset: Callable[[], None] | None = None,
     ) -> None:
         self._get_pct = get_pct
         self._set_pct = set_pct
         self._on_change = on_change
+        self._is_changed = is_changed
+        self._reset = reset
         self.box = SpinBox(
             format_pct(get_pct()),
             on_commit=self._commit,
             on_step=self._step,
+            on_reset=self._reset_clicked if reset is not None else None,
             marker=marker,
             classes=classes,
             dark=dark,
@@ -59,6 +66,12 @@ class PctBox:
         self.refresh()
         self._on_change()
 
+    def _reset_clicked(self) -> None:
+        assert self._reset is not None
+        self._reset()
+        self.refresh()
+        self._on_change()
+
     def refresh(self) -> None:
         pct = self._get_pct()
         self.box.set_text(format_pct(pct))
@@ -71,3 +84,5 @@ class PctBox:
             self.box.set_tone("pct-changed")
         else:
             self.box.set_tone(None)
+        if self._is_changed is not None:
+            self.box.set_original(format_pct(PCT_MID) if self._is_changed() else None)

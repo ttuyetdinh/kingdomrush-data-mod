@@ -36,6 +36,76 @@ if (el) {
 }
 """
 
+# A section key is a row group, or SKILLS_KEY for the heading that folds all skill sections.
+SKILLS_KEY = "*skills*"
+_OPEN, _SHUT = "\u25be", "\u25b8"
+
+
+def _section_keys(group: str) -> list[str]:
+    """The group and its parent groups ("ultimate.burn" -> "ultimate", "ultimate.burn")."""
+    parts = group.split(".") if group else []
+    return [".".join(parts[: i + 1]) for i in range(len(parts))]
+
+
+class _Sections:
+    """Shows and hides table rows when a section title is clicked.
+
+    Folding a section also hides its sub-sections (Ultimate hides Ultimate / Burn); folding
+    the Skills heading hides every skill section of the card.
+    """
+
+    def __init__(self, card_id: str, levels: int, folded: set[tuple[str, str]]) -> None:
+        self.card_id = card_id
+        self.levels = levels
+        self._folded = folded  # (card id, section key), owned by the page
+        self._rows: list[tuple[ui.element, str, bool]] = []  # row, group, is skill
+        self._headers: list[tuple[ui.element, ui.label, str, bool]] = []  # row, arrow, key, is skill
+
+    def folded(self, key: str) -> bool:
+        return (self.card_id, key) in self._folded
+
+    def header(self, key: str, text: str, is_skill: bool) -> None:
+        """A clickable title row: a row group, or SKILLS_KEY for the Skills heading."""
+        heading = key == SKILLS_KEY
+        grp = (
+            "bg-slate-200 border-t border-b border-slate-300 py-1.5" if heading
+            else "bg-slate-100 border-t border-b border-slate-200 py-1"
+        )
+        tr = ui.element("tr").classes("cursor-pointer select-none")
+        tr.mark("skills-heading" if heading else "section-" + key.replace(" ", "-").replace(".", "-"))
+        with tr:
+            with ui.element("td").classes(
+                f"{grp} px-3 font-bold text-xs uppercase tracking-wider text-slate-600 {_PIN_L}"
+            ):
+                with ui.row().classes("items-center gap-1 no-wrap"):
+                    arrow = ui.label(_SHUT if self.folded(key) else _OPEN).classes("w-3")
+                    ui.label(text)
+            ui.element("td").props(f"colspan={self.levels}").classes(grp)
+            ui.element("td").classes(f"{grp} {_PIN_R}")
+        tr.on("click", lambda _, k=key: self.toggle(k))
+        self._headers.append((tr, arrow, key, is_skill and not heading))
+
+    def row(self, tr: ui.element, group: str, is_skill: bool) -> None:
+        self._rows.append((tr, group, is_skill))
+
+    def toggle(self, key: str) -> None:
+        self._folded.symmetric_difference_update({(self.card_id, key)})
+        self.apply()
+
+    def _hidden(self, group: str, is_skill: bool, parents_only: bool) -> bool:
+        if is_skill and self.folded(SKILLS_KEY):
+            return True
+        keys = _section_keys(group)
+        return any(self.folded(k) for k in (keys[:-1] if parents_only else keys))
+
+    def apply(self) -> None:
+        for tr, arrow, key, is_skill in self._headers:
+            arrow.set_text(_SHUT if self.folded(key) else _OPEN)
+            if key != SKILLS_KEY:
+                tr.set_visibility(not self._hidden(key, is_skill, parents_only=True))
+        for tr, group, is_skill in self._rows:
+            tr.set_visibility(not self._hidden(group, is_skill, parents_only=False))
+
 
 class CellController:
     """Controller for an editable numeric cell in the level table."""
@@ -121,7 +191,13 @@ def _read_only_text(state: AppState, p: KeyPath, row: StatRow) -> str:
     return ""
 
 
-def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Callable[[], None]) -> None:
+def render_card(
+    state: AppState,
+    card_id: str,
+    right: ui.element,
+    on_refresh: Callable[[], None],
+    folded: set[tuple[str, str]],
+) -> None:
     """Render the quick scale boxes and the level table (cells and Row % boxes) into right.
 
     on_refresh updates the page chrome (top bar, cards column) after an edit.
@@ -181,22 +257,21 @@ def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Ca
                             ui.label("Row %")
 
                 # Body:
+                sections = _Sections(card_id, max_levels, folded)
                 with ui.element("tbody"):
                     last_group: str | None = None
+                    in_skills = False
 
                     for row in rows:
-                        # Group header row when group changes:
+                        # The Skills heading above the first skill section:
+                        if row.is_skill and not in_skills:
+                            in_skills = True
+                            sections.header(SKILLS_KEY, "Skills", True)
+                        # Section title row when the group changes:
                         if row.group != last_group:
                             last_group = row.group
                             if row.group:
-                                grp = "bg-slate-100 border-t border-b border-slate-200 py-1"
-                                with ui.element("tr"):
-                                    with ui.element("td").classes(
-                                        f"{grp} px-3 font-bold text-xs uppercase tracking-wider text-slate-600 {_PIN_L}"
-                                    ):
-                                        ui.label(friendly_group_label(row.group))
-                                    ui.element("td").props(f"colspan={max_levels}").classes(grp)
-                                    ui.element("td").classes(f"{grp} {_PIN_R}")
+                                sections.header(row.group, friendly_group_label(row.group), row.is_skill)
 
                         row_slug = row.id.replace(" ", "-").replace(".", "-")
 
@@ -210,7 +285,8 @@ def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Ca
                                     break
 
                         cell = "py-1.5 border-b border-slate-100 bg-white group-hover:bg-slate-50"
-                        with ui.element("tr").classes("group"):
+                        with ui.element("tr").classes("group") as tr:
+                            sections.row(tr, row.group, row.is_skill)
                             # Stat column (pinned left):
                             with ui.element("td").classes(f"{cell} px-3 {_PIN_L}"):
                                 name_color = "text-slate-600" if row.read_only else "text-slate-800"
@@ -245,7 +321,10 @@ def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Ca
                                             lambda pct, r=row: state.scale_row(r, pct),
                                             f"row-pct-{row_slug}",
                                             on_mutation,
+                                            is_changed=lambda r=row: state.row_changed(r),
+                                            reset=lambda r=row: state.reset_row(r),
                                         )
                                     )
+                sections.apply()
 
         ui.run_javascript(_OVERFLOW_JS % scroller.id)

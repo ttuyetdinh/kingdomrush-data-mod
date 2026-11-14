@@ -42,10 +42,32 @@ def test_every_tower_hero_and_power_has_a_portrait(cache_paths, tree):
     ids = []
     ids += [f"towers/{k}" for k in {p[1] for p in tree.leaves if p[0] == "towers"} if k != "upgrades"]
     ids += [f"heroes/{k}" for k in {p[1] for p in tree.leaves if p[0] == "heroes"} if str(k).startswith("hero_")]
-    ids += [f"skills/powers/{k}" for k in {p[1] for p in tree.leaves if p[0] == "powers"}]
+    ids += [f"spells/{k}" for k in {p[1] for p in tree.leaves if p[0] == "powers"}]
     missing = [i for i in ids if portrait_for(i, paths.portraits_dir) is None]
     assert not missing
     assert len(ids) == 15 + 12 + 9
+
+
+def test_every_troop_item_and_classic_tower_has_a_portrait(cache_paths, game_paths):
+    from krmod.gameload import load_game
+
+    paths, _ = cache_paths
+    _, idx = load_game(game_paths)
+    ids = [c.id for tab in ("Troops", "Items") for c in idx.cards(tab)]
+    ids += [c.id for c in idx.cards("Towers") if c.id.startswith("towers/kr1/")]
+    missing = [i for i in ids if portrait_for(i, paths.portraits_dir) is None]
+    assert not missing
+    assert len(ids) >= 26 + 3 + 12
+
+
+def test_stage_towers_and_heroes_have_portraits_except_the_tavern(cache_paths, game_paths):
+    from krmod.gameload import load_game
+
+    paths, _ = cache_paths
+    _, idx = load_game(game_paths)
+    ids = [c.id for c in idx.cards("Stages") if c.id.startswith(("stages/towers/", "stages/heroes/"))]
+    missing = [i for i in ids if portrait_for(i, paths.portraits_dir) is None]
+    assert missing == ["stages/towers/stage_14_tavern"]
 
 
 def test_most_enemies_have_a_portrait(cache_paths, tree):

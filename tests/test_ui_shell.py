@@ -9,7 +9,7 @@ from krmod.app import load_state
 async def test_shell_renders(user):
     await user.open("/")
     await user.should_see("KrGenesis Mod")
-    for tab in ("Towers", "Troops", "Heroes", "Skills", "Enemies", "Items", "Stages", "Rules"):
+    for tab in ("Towers", "Troops", "Heroes", "Spells", "Enemies", "Items", "Stages", "Rules"):
         await user.should_see(tab)
 
 
