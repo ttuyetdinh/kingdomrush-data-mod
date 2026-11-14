@@ -66,8 +66,15 @@ def enemy_h(harness):
       local sys = { wave_spawn_tsv = { cmd_fns = { spawn = stub_spawn } } }
       package.loaded["systems"] = sys
       package.preload["systems"] = function() return sys end
-      -- road 1 has three lanes, road 2 only one
-      package.loaded["path_db"] = { paths = { { {}, {}, {} }, { {} } } }
+      -- two roads like the game's: a middle rail and two edge rails 6 apart from it
+      local function road(y)
+        return {
+          { { x = 0, y = y }, { x = 10, y = y } },
+          { { x = 0, y = y + 6 }, { x = 10, y = y + 6 } },
+          { { x = 0, y = y - 6 }, { x = 10, y = y - 6 } },
+        }
+      end
+      package.loaded["path_db"] = { paths = { road(0), road(100) } }
     """)
     harness.write_data([])
     harness.write_live()
@@ -80,10 +87,10 @@ def test_identity_at_1(enemy_h):
 
 
 def test_double(enemy_h):
-    assert spawn(enemy_h, ["a", "b"], 2) == "4"
+    assert spawn(enemy_h, ["a", "b"], 2, spi="2") == "4"
     assert enemy_h.lua("return LAST_STORE.current_spawn_idx") == "2"
-    # each copy walks beside its original: no extra waits, the next lane over
-    assert lanes_and_rows(enemy_h) == "1@1 2@1 1@1 2@1"
+    # each copy walks beside its original: no extra waits, the next line over
+    assert lanes_and_rows(enemy_h) == "2@1 101@1 2@1 101@1"
     assert enemy_h.lua("return #LAST_CMD.spawns") == "2"
 
 
@@ -222,11 +229,11 @@ def test_quarter_accumulator_carries_across_commands(enemy_h):
     assert spawn(enemy_h, ["a"] * 3, 0.25, reset_acc=False) == "1"
 
 
-def test_ten_spawns_ten_per_normal_entry_in_rows_of_three(enemy_h):
+def test_ten_spawns_ten_per_normal_entry_in_rows_of_four(enemy_h):
     assert spawn(enemy_h, ["a", "b", "a"], 10) == "30"
     assert enemy_h.lua("return LAST_STORE.current_spawn_idx") == "3"
-    # one wait for the command, then rows of 3 (4 rows for 10): 3 spacing waits per entry
-    assert enemy_h.lua("return #WAITS") == str(1 + 3 * 3)
+    # one wait for the command, then rows of 4 (3 rows for 10): 2 spacing waits per entry
+    assert enemy_h.lua("return #WAITS") == str(1 + 3 * 2)
     assert enemy_h.lua("return WAITS[2]") == "0.25"
 
 
@@ -238,23 +245,72 @@ def test_ten_boss_still_one_and_carrier_scaled(enemy_h):
 
 def test_hundred_spawns_hundred_per_entry_and_keeps_boss_single(enemy_h):
     assert spawn(enemy_h, ["boss", "a"], 100) == "101"
-    assert enemy_h.lua("return #WAITS") == str(1 + 33)  # 34 rows of up to 3
+    assert enemy_h.lua("return #WAITS") == str(1 + 24)  # 25 rows of 4
 
 
-def test_rows_fill_every_lane_starting_from_the_originals(enemy_h):
+def test_rows_fill_four_lines_starting_from_the_originals(enemy_h):
     assert spawn(enemy_h, ["a"], 5, spi="2") == "5"
-    assert lanes_and_rows(enemy_h) == "2@1 3@1 1@1 2@2 3@2"
+    assert lanes_and_rows(enemy_h) == "2@1 101@1 102@1 3@1 2@2"
+
+
+def test_middle_rail_original_joins_the_four_lines(enemy_h):
+    assert spawn(enemy_h, ["a"], 4, spi="1") == "4"
+    assert sorted(lanes_and_rows(enemy_h).split()) == ["101@1", "102@1", "2@1", "3@1"]
+
+
+def test_inner_rails_sit_a_third_of_the_way_to_each_edge(enemy_h):
+    spawn(enemy_h, ["a"], 2, spi="2")
+    out = enemy_h.lua("""
+      local P = require("path_db")
+      local t = {}
+      for pi = 1, 2 do
+        local l, r = P.paths[pi][101], P.paths[pi][102]
+        t[#t + 1] = #P.paths[pi] .. ":" .. l[2].x .. "," .. l[2].y .. "/" .. r[2].x .. "," .. r[2].y
+      end
+      return table.concat(t, " ")
+    """)
+    # the game's own lua51.dll still counts 3 rails, so its random rail picks never use them
+    assert out == "3:10,2/10,-2 3:10,102/10,98"
+
+
+def test_single_enemies_add_no_rails(enemy_h):
+    spawn(enemy_h, ["a"], 1.5, spi="1")
+    assert enemy_h.lua("return tostring(require('path_db').paths[1][101])") == "nil"
+
+
+def test_new_level_roads_get_rails_again(enemy_h):
+    spawn(enemy_h, ["a"], 2, spi="2")
+    enemy_h.lua("""
+      local P = require("path_db")
+      P.paths = { { { { x = 0, y = 0 } }, { { x = 0, y = 3 } }, { { x = 0, y = -3 } } } }
+    """)
+    assert spawn(enemy_h, ["a"], 4, spi="2") == "4"
+    assert lanes_and_rows(enemy_h) == "2@1 101@1 102@1 3@1"
+    assert enemy_h.lua("return require('path_db').paths[1][101][1].y") == "1"
+
+
+def test_roads_with_other_rails_keep_their_own_lines(enemy_h):
+    # one road with a single rail: no road gets inner rails (an enemy keeps its rail number
+    # on the next road), and the other road's rows use its 3 rails
+    enemy_h.lua("""
+      local P = require("path_db")
+      P.paths = { P.paths[1], { { { x = 0, y = 0 } } } }
+    """)
+    assert spawn(enemy_h, ["a"], 4, spi="2") == "4"
+    assert lanes_and_rows(enemy_h) == "2@1 3@1 1@1 2@2"
+    assert enemy_h.lua("return tostring(require('path_db').paths[1][101])") == "nil"
 
 
 def test_one_lane_road_spawns_copies_one_behind_another(enemy_h):
-    assert spawn(enemy_h, ["a"], 3, pi=2) == "3"
+    enemy_h.lua('require("path_db").paths = { { { { x = 0, y = 0 } } } }')
+    assert spawn(enemy_h, ["a"], 3) == "3"
     assert lanes_and_rows(enemy_h) == "1@1 1@2 1@3"
 
 
-def test_random_lane_entry_still_fills_all_three_lanes_at_once(enemy_h):
-    assert spawn(enemy_h, ["a"], 3, spi='"*"') == "3"
+def test_random_lane_entry_still_fills_all_four_lines_at_once(enemy_h):
+    assert spawn(enemy_h, ["a"], 4, spi='"*"') == "4"
     lanes = lanes_and_rows(enemy_h).split()
-    assert sorted(lanes) == ["1@1", "2@1", "3@1"]
+    assert sorted(lanes) == ["101@1", "102@1", "2@1", "3@1"]
 
 
 def test_single_enemy_keeps_its_random_lane_for_the_game(enemy_h):
