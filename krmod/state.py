@@ -158,6 +158,19 @@ class AppState:
     def row_pct(self, row: StatRow) -> float | None:
         return self._pct_of(self._eligible_row_cells(row))
 
+    def row_changed(self, row: StatRow) -> bool:
+        """True when any cell of the row differs from the game's value."""
+        return any(p in self.profile.changes for p in row.cells if p is not None)
+
+    def reset_row(self, row: StatRow) -> None:
+        """Put every cell of the row back to the game's value (one save)."""
+        self._last_pct = None
+        changed = [p for p in row.cells if p is not None and p in self.profile.changes]
+        for p in changed:
+            del self.profile.changes[p]
+        if changed:
+            self.store.save(self.profile)
+
     def _eligible_card_paths(
         self, card_id: str, category: str | None = None
     ) -> list[KeyPath]:

@@ -6,7 +6,7 @@ from typing import Awaitable, Callable
 from nicegui import ui
 
 UI_TABS: tuple[str, ...] = (
-    "Towers", "Troops", "Heroes", "Skills", "Enemies", "Items", "Stages", "Rules"
+    "Towers", "Troops", "Heroes", "Spells", "Enemies", "Items", "Stages", "Rules"
 )
 from krmod.profiles import ProfileError, slug
 from krmod.state import AppState

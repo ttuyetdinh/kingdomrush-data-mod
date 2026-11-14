@@ -1,4 +1,4 @@
-"""Placement of every balance value into a tab and card.
+"""Placement of every balance value into exactly one tab and card.
 
 place() applies the ordered rules of grouping_rules.py. GroupIndex runs it over a
 whole BalanceTree and answers the queries the UI needs. Placement depends only on
@@ -22,7 +22,6 @@ from .grouping_rules import (
     TROOP_SEGMENTS,
     CardSpec,
     Tab,
-    is_skill_segment,
 )
 from .values import BalanceTree, KeyPath, path_str
 
@@ -36,12 +35,6 @@ class Card:
     title: str
     group: str
     prefix: KeyPath
-
-
-@dataclass(frozen=True)
-class Placement:
-    home: Card
-    extra: tuple[Card, ...]
 
 
 @dataclass(frozen=True)
@@ -85,10 +78,7 @@ def _match(pattern: tuple[str, ...], path: tuple[str | int, ...]) -> dict[str, s
         seg = path[i]
         if tok.startswith("{"):
             name, _, kind = tok[1:-1].partition(":")
-            if kind == "skill":
-                if not is_skill_segment(seg):
-                    return None
-            elif kind == "power":
+            if kind == "power":
                 if not (isinstance(seg, str) and seg.startswith("power_")
                         and len(seg) > len("power_")):
                     return None
@@ -138,24 +128,22 @@ def _other_card(root: str) -> Card:
 
 
 @lru_cache(maxsize=None)
-def _place_parent(parent: KeyPath) -> Placement:
+def _place_parent(parent: KeyPath) -> Card:
     # Rule 1: a troop segment anywhere from index 2 on, inside the parent table.
     for i in range(2, len(parent)):
         if parent[i] in TROOP_SEGMENTS:
-            return Placement(_troop_card(parent[: i + 1]), ())
+            return _troop_card(parent[: i + 1])
     path = parent + (None,)  # the leaf's own name never takes part in matching
     for rule in RULES:
         caps = _match(rule.pattern, path)  # type: ignore[arg-type]
         if caps is not None:
-            return Placement(
-                _build(rule.home, caps),
-                tuple(_build(spec, caps) for spec in rule.extra),
-            )
+            return _build(rule.card, caps)
     root = parent[0] if parent and isinstance(parent[0], str) else ""
-    return Placement(_other_card(root), ())
+    return _other_card(root)
 
 
-def place(path: KeyPath) -> Placement:
+def place(path: KeyPath) -> Card:
+    """The one card that shows the value at path."""
     return _place_parent(tuple(path[:-1]))
 
 
@@ -179,7 +167,7 @@ class GroupIndex:
     def __init__(self) -> None:
         self._cards: dict[str, Card] = {}
         self._paths: dict[str, list[KeyPath]] = {}
-        self._placements: dict[KeyPath, Placement] = {}
+        self._placements: dict[KeyPath, Card] = {}
         self._numeric: list[KeyPath] = []
         self._by_tab: dict[str, list[Card]] = {tab: [] for tab in TABS}
 
@@ -187,13 +175,12 @@ class GroupIndex:
     def build(cls, tree: BalanceTree) -> "GroupIndex":
         idx = cls()
         for p, leaf in tree.leaves.items():
-            pl = place(p)
-            idx._placements[p] = pl
+            card = place(p)
+            idx._placements[p] = card
             if leaf.kind == "num":
                 idx._numeric.append(p)
-            for card in (pl.home, *pl.extra):
-                idx._cards.setdefault(card.id, card)
-                idx._paths.setdefault(card.id, []).append(p)
+            idx._cards.setdefault(card.id, card)
+            idx._paths.setdefault(card.id, []).append(p)
         for paths in idx._paths.values():
             paths.sort(key=_path_key)
         for card in idx._cards.values():
@@ -211,7 +198,7 @@ class GroupIndex:
     def paths_of(self, card_id: str) -> list[KeyPath]:
         return list(self._paths[card_id])
 
-    def placement(self, path: KeyPath) -> Placement:
+    def card_of(self, path: KeyPath) -> Card:
         return self._placements[path]
 
     def self_check(self) -> SelfCheck:
@@ -219,11 +206,11 @@ class GroupIndex:
         other: list[KeyPath] = []
         placed = 0
         for p in self._numeric:
-            pl = self._placements.get(p)
-            if pl is None or pl.home.id not in self._paths:
+            card = self._placements.get(p)
+            if card is None or card.id not in self._paths:
                 unplaced.append(p)
                 continue
             placed += 1
-            if pl.home.id.startswith("other/"):
+            if card.id.startswith("other/"):
                 other.append(p)
         return SelfCheck(len(self._numeric), placed, unplaced, other)

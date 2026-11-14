@@ -25,17 +25,32 @@ def test_hero_bars_label(tree):
 
 def test_group_sort_and_enum_rows(tree):
     rows = _rows(tree, "towers/archers")
-    groups = [r.group for r in rows]
-    assert groups == sorted(groups, key=lambda g: (g != "", g))
+    own = [r.group for r in rows if not r.is_skill]
+    assert own == sorted(own, key=lambda g: (g != "", g))
     enums = [r for r in rows if r.is_enum]
     assert enums and all(r.read_only for r in enums)
     nested = {r.id: r for r in rows}["basic_attack.damage_min"]
     assert nested.group == "basic_attack" and nested.label == "Damage (min)"
 
 
+def test_skill_sections_come_after_the_units_own_stats(tree):
+    for card_id in ("towers/catapult", "heroes/hero_bolin"):
+        rows = _rows(tree, card_id)
+        flags = [r.is_skill for r in rows]
+        first_skill = flags.index(True)
+        assert not any(flags[:first_skill]) and all(flags[first_skill:]), card_id
+        groups = {r.group.split(".")[0] for r in rows if r.is_skill}
+        assert {"skill_a", "ultimate"} <= groups
+    groups = [r.group for r in _rows(tree, "towers/catapult")]
+    assert groups.index("stats") < groups.index("skill_a")
+    bolin = {r.group: r.is_skill for r in _rows(tree, "heroes/hero_bolin")}
+    assert bolin["upgrades.upg_a"] and bolin["talent_1"] and not bolin["Hero screen bars"]
+    assert not any(r.is_skill for r in _rows(tree, "spells/aspect_of_sol"))
+
+
 def test_every_leaf_in_exactly_one_row(tree):
     idx = GroupIndex.build(tree)
-    for card_id in ("towers/archers", "heroes/hero_bolin", "skills/powers/aspect_of_sol",
+    for card_id in ("towers/archers", "heroes/hero_bolin", "spells/aspect_of_sol",
                     "enemies/demons/demon_lord", "other/Stages", "stages/towers/stage_07_barn"):
         try:
             card = idx.card(card_id)
@@ -49,7 +64,7 @@ def test_every_leaf_in_exactly_one_row(tree):
 
 
 def test_foreign_upgrade_paths_get_their_own_group(tree):
-    rows = _rows(tree, "skills/powers/aspect_of_sol")
+    rows = _rows(tree, "spells/aspect_of_sol")
     assert any(r.group.startswith("upgrades") for r in rows)
 
 
@@ -59,7 +74,7 @@ def test_string_rows_are_read_only(tree):
     assert strs
     seen = 0
     for p in strs:
-        card = idx.placement(p).home
+        card = idx.card_of(p)
         for r in build_rows(card, idx.paths_of(card.id), tree):
             if p in r.cells:
                 assert r.read_only
@@ -77,7 +92,7 @@ def test_friendly_label():
 
 def test_no_duplicate_row_labels_within_group(tree):
     idx = GroupIndex.build(tree)
-    for tab in ("Towers", "Troops", "Heroes", "Skills", "Enemies", "Items", "Stages"):
+    for tab in ("Towers", "Troops", "Heroes", "Spells", "Enemies", "Items", "Stages"):
         for card in idx.cards(tab):
             rows = build_rows(card, idx.paths_of(card.id), tree)
             seen = set()

@@ -1,10 +1,12 @@
 """Card portraits cut from the game's own art, cached as small PNGs.
 
 Sources, all inside the exe zip under _assets/kr6-desktop/images/ipadhd_bc3/:
-  room_tower.lua      atlas descriptor naming the standalone 1180x1120 DXT5 images
-                      (tower_portraits_big_*, hero_portraits_big_*, power_portraits_big_*)
-  gui_portraits.lua   atlas descriptor for the small HUD portraits, used for enemies
-                      and for the Kingdom Rush 1 towers
+  room_tower.lua        atlas descriptor naming the standalone 1180x1120 DXT5 images
+                        (tower_portraits_big_*, hero_portraits_big_*, power_portraits_big_*)
+  gui_portraits.lua     atlas descriptor for the small HUD portraits (the picture in the
+                        bottom bar when a unit is clicked in a level), used for enemies,
+                        troops, stage towers and heroes, and the Kingdom Rush 1 towers
+  room_progression.lua  atlas descriptor holding the big item portraits
 
 Families that cannot be matched reliably have no entry and portrait_for returns None.
 """
@@ -42,7 +44,7 @@ return table.concat(out, "\n")
 _BIG_FAMILIES = (
     ("towers/", "tower_portraits_big_"),
     ("heroes/", "hero_portraits_big_"),
-    ("skills/powers/", "power_portraits_big_"),
+    ("spells/", "power_portraits_big_"),
 )
 # The one tower whose frame name is singular.
 _BIG_ALIASES = {"towers/culverine": "tower_portrait_big_culverine"}
@@ -76,23 +78,76 @@ _ENEMY_FRAMES = {
 }
 _ENEMY_PREFIX = "gui_bottom_info_image_enemies_"
 
-# Kingdom Rush 1 tower (card id towers/kr1/<key>) -> n of gui_bottom_info_image_towers_<n>.
-_KR1_TOWER_FRAMES = {
-    "archers": 17, "musketeers": 18, "barracks": 19, "paladins": 20, "barbarians": 21,
-    "mages": 22, "arcane": 23, "sorcerer": 24, "engineers": 25, "bfg": 26, "tesla": 27,
+# HUD frames (gui_bottom_info_image_<family>_<n>) by card id, read from the info.portrait
+# of the game's unit templates and checked by eye against the cropped frames.
+_HUD_PREFIX = "gui_bottom_info_image_"
+_HUD_FRAMES: dict[str, tuple[str, int]] = {
+    # Kingdom Rush 1 towers
+    "towers/kr1/archers": ("towers", 17), "towers/kr1/musketeers": ("towers", 18),
+    "towers/kr1/barracks": ("towers", 19), "towers/kr1/paladins": ("towers", 20),
+    "towers/kr1/barbarians": ("towers", 21), "towers/kr1/mages": ("towers", 22),
+    "towers/kr1/arcane": ("towers", 23), "towers/kr1/sorcerer": ("towers", 24),
+    "towers/kr1/engineers": ("towers", 25), "towers/kr1/bfg": ("towers", 26),
+    "towers/kr1/tesla": ("towers", 27), "towers/kr1/ranger": ("towers", 5),
+    # Troops (level 1 picture where a troop has one per level)
+    "troops/towers.alchemist.skill_b.soldier": ("soldiers", 56),
+    "troops/towers.crossbows.ultimate.soldier": ("soldiers", 65),
+    "troops/towers.knights.soldier": ("soldiers", 11),
+    "troops/towers.miners.skill_a.soldier": ("soldiers", 61),
+    "troops/towers.miners.soldier": ("soldiers", 61),
+    "troops/towers.sunray_master.skill_a.soldier": ("soldiers", 41),
+    "troops/towers.tree.soldier": ("soldiers", 22),
+    "troops/towers.tree.ultimate.seedling": ("soldiers", 26),
+    "troops/towers.wildcat.soldier": ("soldiers", 37),
+    "troops/kr1_mode.towers.barbarians.soldier": ("soldiers", 35),
+    "troops/kr1_mode.towers.barracks.soldier": ("soldiers", 31),
+    "troops/kr1_mode.towers.paladins.soldier": ("soldiers", 34),
+    "troops/kr1_mode.towers.sorcerer.elemental.soldier": ("soldiers", 30),
+    "troops/heroes.hero_drakkan.skill_c.clone": ("soldiers", 20),
+    "troops/heroes.hero_myriath.clone": ("heroes", 9),
+    "troops/powers.aspect_of_sol.soldier": ("soldiers", 45),
+    "troops/powers.musketeers.soldier": ("soldiers", 66),
+    "troops/powers.reinforcements.soldier": ("soldiers", 1),
+    "troops/powers.reinforcements.special_soldier": ("soldiers", 10),
+    "troops/specials.heroes.hero_alleria.wildcat.soldier": ("soldiers", 15),
+    "troops/specials.heroes.hero_denas.denas_guards.soldier": ("heroes", 18),  # Denas's own
+    "troops/specials.stage_06.nivus.books.soldier": ("soldiers", 19),
+    "troops/specials.towers.stage_07_barn.soldier": ("soldiers", 16),
+    "troops/specials.towers.stage_11_tower_camp.soldier": ("soldiers", 16),
+    "troops/specials.towers.stage_14_armory.soldier": ("soldiers", 59),
+    "troops/specials.towers.stage_17_paladin_barracks.soldier": ("towers", 8),  # the barracks'
+    # Stage towers and heroes
+    "stages/heroes/hero_alleria": ("heroes", 2),
+    "stages/heroes/hero_denas": ("heroes", 18),
+    "stages/towers/stage_04_crane": ("towers", 6),
+    "stages/towers/stage_07_barn": ("towers", 8),
+    "stages/towers/stage_08_catapult": ("towers", 7),
+    "stages/towers/stage_11_tower_camp": ("towers", 11),
+    "stages/towers/stage_13_sunray_obelisk": ("towers", 12),
+    "stages/towers/stage_13_sunray_tower": ("towers", 12),
+    "stages/towers/stage_14_armory": ("towers", 32),
+    "stages/towers/stage_14_blacksmith": ("towers", 33),
+    "stages/towers/stage_16_treant_attacker": ("towers", 6),
+    "stages/towers/stage_16_treant_healer": ("towers", 6),
+    "stages/towers/stage_16_treant_killer": ("towers", 6),
+    "stages/towers/stage_16_treant_rooter": ("towers", 6),
+    "stages/towers/stage_17_paladin_barracks": ("towers", 8),
 }
-_KR1_PREFIX = "gui_bottom_info_image_towers_"
 
 # Enemies the HUD atlas has no portrait for, taken from the encyclopedia thumbnails
 # (a whole scene tile, so they look different) -> n of encyclopedia_enemies_thumb_<n>.
 _ENEMY_THUMBS = {"dark_army/death_rider": 50}
 _THUMB_PREFIX = "encyclopedia_enemies_thumb_"
 
+# Item card id -> frame of the big item portraits.
+_ITEM_FRAMES = {f"items/{k}": f"portraits_big_item_{k}" for k in ("bomb", "gold", "hearts")}
+
 # Descriptor key -> file name under IMAGES_DIR; each is read independently.
 _DESCRIPTORS = {
     "room_tower": "room_tower.lua",
     "gui_portraits": "gui_portraits.lua",
     "encyclopedia_thumbs": "encyclopedia_thumbs.lua",
+    "room_progression": "room_progression.lua",
 }
 
 
@@ -154,10 +209,10 @@ def _wanted(frames: dict) -> dict[str, tuple[str, int, int, int, int]]:
         frame = frames["room_tower"].get(frame_name)
         if frame:
             wanted[card_id] = frame
-    for key, n in _KR1_TOWER_FRAMES.items():
-        frame = frames["gui_portraits"].get(f"{_KR1_PREFIX}{n:04d}")
+    for card_id, (family, n) in _HUD_FRAMES.items():
+        frame = frames["gui_portraits"].get(f"{_HUD_PREFIX}{family}_{n:04d}")
         if frame:
-            wanted[f"towers/kr1/{key}"] = frame
+            wanted[card_id] = frame
     for key, n in _ENEMY_FRAMES.items():
         frame = frames["gui_portraits"].get(f"{_ENEMY_PREFIX}{n:04d}")
         if frame:
@@ -166,6 +221,10 @@ def _wanted(frames: dict) -> dict[str, tuple[str, int, int, int, int]]:
         frame = frames["encyclopedia_thumbs"].get(f"{_THUMB_PREFIX}{n:04d}")
         if frame:
             wanted[f"enemies/{key}"] = frame
+    for card_id, frame_name in _ITEM_FRAMES.items():
+        frame = frames["room_progression"].get(frame_name)
+        if frame:
+            wanted[card_id] = frame
     return wanted
 
 
