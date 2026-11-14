@@ -85,7 +85,7 @@ class LiveBox:
         if self.field == "enemy_mult":
             self._save(step_enemy(current, direction, shift))
         else:
-            self._save(step_troop(current, direction))
+            self._save(step_troop(current, direction, shift))
 
     def _save(self, value: float) -> None:
         if value == self._current():

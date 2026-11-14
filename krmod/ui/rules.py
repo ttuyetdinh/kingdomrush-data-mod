@@ -208,8 +208,9 @@ def render(state: AppState, on_refresh: Callable[[], None]) -> None:
             with ui.column().classes("w-full gap-1"):
                 LiveBox(state, "troop_delta", "rules-troop-delta", on_refresh)
                 ui.label(
-                    "Adds or removes soldiers per barracks, from -10 to +10: 0 is the default, "
-                    "+1 is one more, -1 is one fewer. A large minus can leave a barracks empty."
+                    "Adds or removes soldiers per barracks, from -10 to +100 (Shift with the arrows "
+                    "steps by 10): 0 is the default, +1 is one more, -1 is one fewer. A large minus "
+                    "can leave a barracks empty."
                 ).classes("text-xs text-slate-500")
         # Section 4: Stale Changes (only rendered when non-empty)
         stale_paths = state.stale()

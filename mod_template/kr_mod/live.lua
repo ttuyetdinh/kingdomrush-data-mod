@@ -11,9 +11,9 @@ local function clean_enemy_mult(m)
   return nil
 end
 
--- Extra soldiers per barracks: a whole number from -10 to 10.
+-- Extra soldiers per barracks: a whole number from -10 to 100.
 local function is_valid_troop_delta(d)
-  return type(d) == "number" and d == math.floor(d) and d >= -10 and d <= 10
+  return type(d) == "number" and d == math.floor(d) and d >= -10 and d <= 100
 end
 
 -- Read and validate mods/kr_mod_live.lua. Returns a clean table or nil.

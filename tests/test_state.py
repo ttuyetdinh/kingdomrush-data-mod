@@ -79,7 +79,7 @@ def test_live_writes_file_and_saves(state):
     with pytest.raises(ProfileError):
         state.set_live(enemy_mult=0.6)
     with pytest.raises(ProfileError):
-        state.set_live(troop_delta=11)
+        state.set_live(troop_delta=101)
 
 
 def test_profile_switch_isolates_changes(state):

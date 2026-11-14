@@ -219,15 +219,15 @@ async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
     _commit(user, "rules-troop-delta", "-3.4")
     assert state.profile.live.troop_delta == -3
     assert _box_text(user, "rules-troop-delta") == "-3"
-    _commit(user, "rules-troop-delta", "+50")
-    assert state.profile.live.troop_delta == 10
-    assert _box_text(user, "rules-troop-delta") == "+10"
+    _commit(user, "rules-troop-delta", "+500")
+    assert state.profile.live.troop_delta == 100
+    assert _box_text(user, "rules-troop-delta") == "+100"
 
     # rejected text: the saved value stays and the box reverts
     _commit(user, "rules-troop-delta", "abc")
     await user.should_see("Not a number")
-    assert state.profile.live.troop_delta == 10
-    assert _box_text(user, "rules-troop-delta") == "+10"
+    assert state.profile.live.troop_delta == 100
+    assert _box_text(user, "rules-troop-delta") == "+100"
     user.find(marker="rules-enemy-mult").clear().trigger("commit")
     await user.should_see("Value cannot be empty")
     assert state.profile.live.enemy_mult == 100.0

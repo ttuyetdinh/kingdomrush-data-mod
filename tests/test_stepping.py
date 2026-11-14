@@ -88,6 +88,14 @@ def test_troop_whole_numbers_and_bounds():
     assert clamp_troop(-1.5) == -2
     assert clamp_troop(2.4) == 2
     assert clamp_troop(-30) == -10
-    assert step_troop(10, 1) == 10
+    assert clamp_troop(150) == 100
+    assert step_troop(10, 1) == 11
+    assert step_troop(100, 1) == 100
     assert step_troop(-10, -1) == -10
     assert step_troop(0, -1) == -1
+
+
+def test_troop_shift_steps_by_ten_within_bounds():
+    assert step_troop(0, 1, shift=True) == 10
+    assert step_troop(95, 1, shift=True) == 100
+    assert step_troop(-5, -1, shift=True) == -10
