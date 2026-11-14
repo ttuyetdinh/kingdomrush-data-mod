@@ -5,11 +5,14 @@
 --
 -- Every road of the game has 3 rails: 1 in the middle, 2 and 3 on the edges (about 40 px
 -- apart). A row has more lines the more enemies there are (lines_for): 3, 4, 5 or 6, evenly
--- spaced from edge to edge. Lines between the edges other than the middle are inner rails the
--- mod adds to every road of the level when copies first need them. Their keys are far above 3
--- so #P.paths[pi] stays 3: the game's own "random rail" picks and loops never see them. Only
--- rows walk on them: the copies, and an original that has copies (one on a rail outside the
--- row, or on a random rail, joins its row on a random line).
+-- spaced. 3 and 4 lines span the road from edge to edge; 5 and 6 lines keep the 4 lines' gap
+-- (a third of the road) and so reach past the edges, but only over walkable ground of the
+-- level's grid: where the ground beside the road is not walkable, the row narrows there. Lines
+-- other than the game's rails are rails the mod adds to every road of the level when copies
+-- first need them. Their keys are far above 3 so #P.paths[pi] stays 3: the game's own "random
+-- rail" picks and loops never see them. Only rows walk on them: the copies, and an original
+-- that has copies (one on a rail outside the row, or on a random rail, joins its row on a
+-- random line).
 local M = {}
 
 M.EXTRA_SPACING = 0.25
@@ -99,33 +102,87 @@ function M.lines_for(mult)
   return 3
 end
 
+-- How far a row of `lines` lines reaches, in road half-widths from the middle: rows up to 4
+-- lines span the road edge to edge (1); wider rows keep the 4 lines' gap of a third of the road.
+function M.spread(lines)
+  return math.max(1, (lines - 1) / 3)
+end
+
 -- The rails of a row of `lines` lines, left to right, with each one's place across the road
--- (1 = rail 2's edge, 0 = the middle rail, -1 = rail 3's edge). Inner rails get the key
+-- (1 = rail 2's edge, 0 = the middle rail, -1 = rail 3's edge; beyond 1 = past the edge). The
+-- game's rails serve where a line sits exactly on one; other lines get the key
 -- 100 + 10 * lines + i, so rows of different sizes never share one.
 function M.row_rails(lines)
   local row = {}
+  local spread = M.spread(lines)
   for i = 0, lines - 1 do
-    local t = 1 - 2 * i / (lines - 1)
+    local u = 1 - 2 * i / (lines - 1)
     local key
-    if t == 1 then
-      key = 2
-    elseif t == -1 then
-      key = 3
-    elseif t == 0 then
+    if u == 0 then
       key = 1
+    elseif spread == 1 and u == 1 then
+      key = 2
+    elseif spread == 1 and u == -1 then
+      key = 3
     else
       key = 100 + 10 * lines + i
     end
-    row[#row + 1] = { key = key, t = t }
+    row[#row + 1] = { key = key, t = u * spread }
   end
   return row
 end
 
--- Add the inner rails of a row of `lines` lines to every road of P, once per level (P.paths is
--- a new table each level) and row size. All or nothing: an enemy keeps its rail number when it
--- walks onto the next road, so every road needs them. Returns the row's rail keys, left to
--- right, or nil when the roads cannot have them.
-function M.add_rails(P, lines)
+local WALK_MASK = 255 + 256 -- TERRAIN_TYPES_MASK + TERRAIN_NOWALK
+local NOWALK = 256
+
+-- Terrain of the level grid at x, y (the game's grid_db lookup, without its error log for
+-- points off the grid), or nil without a grid.
+local function cell(GR, x, y)
+  if type(GR) ~= "table" or type(GR.grid) ~= "table" then return nil end
+  local size = GR.cell_size or 16
+  local col = GR.grid[math.ceil((x - (GR.ox or 0)) / size)]
+  return type(col) == "table" and col[math.ceil((y - (GR.oy or 0)) / size)] or 0
+end
+
+-- How many road half-widths a row may reach on one side at each node (1 to `spread`): past the
+-- edge only while the grid cell matches the middle's walkable terrain, narrowed to the smallest
+-- reach within WIDTH_WINDOW nodes so a row eases in and out of narrow spots.
+M.WIDTH_WINDOW = 6
+local function reach(GR, mid, edge, spread)
+  local raw = {}
+  for ni = 1, #mid do
+    local c, e = mid[ni], edge[ni]
+    local dx, dy = e.x - c.x, e.y - c.y
+    local half = math.sqrt(dx * dx + dy * dy)
+    local base = cell(GR, c.x, c.y)
+    local r = 1
+    if spread > 1 and half > 0 and base and base ~= 0 and bit.band(base, NOWALK) == 0 then
+      base = bit.band(base, WALK_MASK)
+      local need = (spread - 1) * half
+      local s = 2
+      while s <= need and bit.band(cell(GR, e.x + dx / half * s, e.y + dy / half * s), WALK_MASK) == base do
+        s = s + 2
+      end
+      r = math.min(spread, 1 + math.min(s - 2, need) / half)
+    end
+    raw[ni] = r
+  end
+  local out = {}
+  for ni = 1, #raw do
+    local r = raw[ni]
+    for k = math.max(1, ni - M.WIDTH_WINDOW), math.min(#raw, ni + M.WIDTH_WINDOW) do
+      if raw[k] < r then r = raw[k] end
+    end
+    out[ni] = r
+  end
+  return out
+end
+
+-- Add the rails of a row of `lines` lines to every road of P, once per level (P.paths is a new
+-- table each level) and row size. All or nothing: an enemy keeps its rail number when it walks
+-- onto the next road, so every road needs them. Returns the row's rail keys, left to right, or
+-- nil when the roads cannot have them.
+function M.add_rails(P, lines, GR)
   local paths = type(P) == "table" and P.paths or nil
   if type(paths) ~= "table" or #paths == 0 then return nil end
   local row = M.row_rails(lines)
@@ -139,16 +196,21 @@ function M.add_rails(P, lines)
     local n = node_count(road[1])
     if n == 0 or node_count(road[2]) ~= n or node_count(road[3]) ~= n then return nil end
   end
+  local spread = M.spread(lines)
   for pi = 1, #paths do
     local mid, left, right = paths[pi][1], paths[pi][2], paths[pi][3]
+    local reach_left = reach(GR, mid, left, spread)
+    local reach_right = reach(GR, mid, right, spread)
     for _, rail in ipairs(row) do
       if rail.key > 3 then
-        local edge, f = left, rail.t
-        if f < 0 then edge, f = right, -f end
+        local edge, side, f = left, reach_left, rail.t
+        if f < 0 then edge, side, f = right, reach_right, -f end
         local nodes = {}
         for ni = 1, #mid do
+          -- the row's outer line sits at this node's reach; the others keep even gaps
+          local k = f * side[ni] / spread
           local c, e = mid[ni], edge[ni]
-          nodes[ni] = { x = c.x + (e.x - c.x) * f, y = c.y + (e.y - c.y) * f }
+          nodes[ni] = { x = c.x + (e.x - c.x) * k, y = c.y + (e.y - c.y) * k }
         end
         paths[pi][rail.key] = nodes
       end
@@ -159,11 +221,12 @@ function M.add_rails(P, lines)
 end
 
 -- The lines of one row (left to right) for an entry, and the index of the line the original
--- takes. On roads with the game's 3 rails: a row of `lines` lines (see add_rails); an original
--- on a rail outside the row, or on "*", takes a random line. Otherwise the road's rails 1..n,
--- "*" picking one as the game would. An unknown rail gives no row: copies then spawn one behind
--- another on the original's rail.
-function M.lanes(P, o, lines)
+-- takes. On roads with the game's 3 rails: a row of `lines` lines (see add_rails; GR is the
+-- level grid, without it rows stay within the road); an original on a rail outside the row, or
+-- on "*", takes a random line. Otherwise the road's rails 1..n, "*" picking one as the game
+-- would. An unknown rail gives no row: copies then spawn one behind another on the original's
+-- rail.
+function M.lanes(P, o, lines, GR)
   local road = type(P) == "table" and type(P.paths) == "table" and P.paths[o.pi] or nil
   local rails = type(road) == "table" and #road or 1
   if rails < 1 then rails = 1 end
@@ -171,7 +234,7 @@ function M.lanes(P, o, lines)
   if spi ~= "*" and (type(spi) ~= "number" or spi < 1 or spi > rails or spi ~= math.floor(spi)) then
     return nil, nil
   end
-  local row = rails == 3 and M.add_rails(P, lines or 4) or nil
+  local row = rails == 3 and M.add_rails(P, lines or 4, GR) or nil
   if not row then
     row = {}
     for i = 1, rails do row[i] = i end
@@ -225,6 +288,10 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
   local ok_p, pdb = pcall(require, "path_db")
   if ok_p then P = pdb end
 
+  local GR = nil
+  local ok_g, gdb = pcall(require, "grid_db")
+  if ok_g then GR = gdb end
+
   for _, o in ipairs(cmd.spawns) do
     if store.force_next_wave then break end
 
@@ -239,7 +306,7 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
     elseif n >= 1 then
       -- A single enemy keeps its rail; copies get a row of lines (none: one behind another).
       local lanes, base = nil, nil
-      if n > 1 then lanes, base = M.lanes(P, o, M.lines_for(mult)) end
+      if n > 1 then lanes, base = M.lanes(P, o, M.lines_for(mult), GR) end
       local width = lanes and #lanes or 1
       local first = o
       if base then
