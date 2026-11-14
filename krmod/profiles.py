@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from krmod.model.stepping import (
+    ENEMY_MAX,
     ENEMY_VALUES,
     EXTRA_POINTS_MAX,
     TROOP_MAX,
@@ -70,7 +71,9 @@ class LiveSettings:
         if not _is_finite_number(self.enemy_mult):
             raise ProfileError(f"enemy_mult must be a number, got {self.enemy_mult!r}")
         if self.enemy_mult not in ENEMY_VALUES:
-            raise ProfileError(f"enemy_mult must be 0.25 or a whole number from 1 to 10, got {self.enemy_mult!r}")
+            raise ProfileError(
+                f"enemy_mult must be 0.25 or a whole number from 1 to {ENEMY_MAX}, got {self.enemy_mult!r}"
+            )
         if isinstance(self.troop_delta, bool) or not isinstance(self.troop_delta, int):
             raise ProfileError(f"troop_delta must be a whole number, got {self.troop_delta!r}")
         if not TROOP_MIN <= self.troop_delta <= TROOP_MAX:

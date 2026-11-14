@@ -13,7 +13,8 @@ SHIFT_FACTOR = 10
 PCT_STEP = Decimal(1)
 _TENTH = Decimal("0.1")
 
-ENEMY_VALUES: tuple[float, ...] = (0.25,) + tuple(float(n) for n in range(1, 11))
+ENEMY_MAX = 100
+ENEMY_VALUES: tuple[float, ...] = (0.25,) + tuple(float(n) for n in range(1, ENEMY_MAX + 1))
 TROOP_MIN = -10
 TROOP_MAX = 10
 # Extra hero skill points and skill tree points are added to the game's own totals.
@@ -77,9 +78,17 @@ def snap_enemy(value: float) -> float:
     return min(ENEMY_VALUES, key=lambda v: (abs(v - value), -v))
 
 
-def step_enemy(current: float, direction: int) -> float:
-    i = ENEMY_VALUES.index(snap_enemy(current))
-    return ENEMY_VALUES[min(len(ENEMY_VALUES) - 1, max(0, i + direction))]
+def step_enemy(current: float, direction: int, shift: bool = False) -> float:
+    """Next allowed multiplier. Shift jumps to the next multiple of ten (1 -> 10 -> 20, and back
+    20 -> 10 -> 1); below 1 and at the ends it moves like a plain step."""
+    cur = snap_enemy(current)
+    if shift and cur >= 1:
+        tens = math.floor(cur / SHIFT_FACTOR) + 1 if direction > 0 else math.ceil(cur / SHIFT_FACTOR) - 1
+        target = min(ENEMY_MAX, max(1, tens * SHIFT_FACTOR))
+        if target != cur:
+            return float(target)
+    i = ENEMY_VALUES.index(cur) + direction
+    return ENEMY_VALUES[min(len(ENEMY_VALUES) - 1, max(0, i))]
 
 
 def clamp_troop(value: float) -> int:

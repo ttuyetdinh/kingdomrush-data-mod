@@ -223,6 +223,12 @@ def test_ten_boss_still_one_and_carrier_scaled(enemy_h):
     assert enemy_h.lua("return SPAWN_CALLS[1].gems_per_wave") == "100"
 
 
+def test_hundred_spawns_hundred_per_entry_and_keeps_boss_single(enemy_h):
+    assert spawn(enemy_h, ["boss", "a"], 100) == "101"
+    assert enemy_h.lua("return #WAITS") == str(1 + 99)
+
+
+
 def test_quarter_boss_and_carrier_never_dropped(enemy_h):
     assert spawn(enemy_h, ["boss"], 0.25) == "1"
     assert spawn(enemy_h, ["a"], 0.25, gems_idx=(1,)) == "1"

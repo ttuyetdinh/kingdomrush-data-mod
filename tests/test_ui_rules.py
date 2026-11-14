@@ -211,8 +211,10 @@ async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
     _commit(user, "rules-enemy-mult", "0.3")
     assert state.profile.live.enemy_mult == 0.25
     assert _box_text(user, "rules-enemy-mult") == "0.25"
-    _commit(user, "rules-enemy-mult", "99")
-    assert state.profile.live.enemy_mult == 10.0
+    _commit(user, "rules-enemy-mult", "30")
+    assert state.profile.live.enemy_mult == 30.0
+    _commit(user, "rules-enemy-mult", "999")
+    assert state.profile.live.enemy_mult == 100.0
 
     _commit(user, "rules-troop-delta", "-3.4")
     assert state.profile.live.troop_delta == -3
@@ -228,8 +230,8 @@ async def test_live_boxes_typed_values_snap_clamp_and_reject(user, state):
     assert _box_text(user, "rules-troop-delta") == "+10"
     user.find(marker="rules-enemy-mult").clear().trigger("commit")
     await user.should_see("Value cannot be empty")
-    assert state.profile.live.enemy_mult == 10.0
-    assert _box_text(user, "rules-enemy-mult") == "10"
+    assert state.profile.live.enemy_mult == 100.0
+    assert _box_text(user, "rules-enemy-mult") == "100"
 
 
 async def test_topbar_and_rules_live_boxes_stay_in_sync(user, state):

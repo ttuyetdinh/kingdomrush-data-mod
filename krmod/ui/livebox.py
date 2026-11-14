@@ -20,7 +20,7 @@ _LABELS = {"enemy_mult": "Enemies x", "troop_delta": "Troops"}
 
 
 def format_live(field: str, value: float) -> str:
-    """Box text: "0.25", "1", "10" for Enemies; "0", "+2", "-1" for Troops."""
+    """Box text: "0.25", "1", "100" for Enemies; "0", "+2", "-1" for Troops."""
     if field == "enemy_mult":
         return f"{value:g}"
     return f"{int(value):+d}" if value else "0"
@@ -83,7 +83,7 @@ class LiveBox:
     def _on_step(self, direction: int, shift: bool) -> None:
         current = self._current()
         if self.field == "enemy_mult":
-            self._save(step_enemy(current, direction))
+            self._save(step_enemy(current, direction, shift))
         else:
             self._save(step_troop(current, direction))
 

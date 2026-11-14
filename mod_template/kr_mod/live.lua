@@ -1,13 +1,13 @@
 -- KrGenesis live controls: speed hotkeys, badge, and live polling.
 local M = {}
 
--- The enemy multiplier must be one of 0.25, 1, 2, ..., 10 (small tolerance). Returns the
+-- The enemy multiplier must be one of 0.25, 1, 2, ..., 100 (small tolerance). Returns the
 -- exact allowed value, or nil.
 local function clean_enemy_mult(m)
   if type(m) ~= "number" then return nil end
   if math.abs(m - 0.25) < 1e-6 then return 0.25 end
   local n = math.floor(m + 0.5)
-  if n >= 1 and n <= 10 and math.abs(m - n) < 1e-6 then return n end
+  if n >= 1 and n <= 100 and math.abs(m - n) < 1e-6 then return n end
   return nil
 end
 
