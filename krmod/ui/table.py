@@ -281,7 +281,11 @@ def render_card(
                         if row.group != last_group:
                             last_group = row.group
                             if row.group:
-                                sections.header(row.group, friendly_group_label(row.group), row.is_skill)
+                                title = friendly_group_label(row.group)
+                                game_name = state.index.section_name(card_id, row.group)
+                                if game_name:
+                                    title = f"{title}: {game_name}"
+                                sections.header(row.group, title, row.is_skill)
 
                         row_slug = row.id.replace(" ", "-").replace(".", "-")
 

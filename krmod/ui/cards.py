@@ -88,7 +88,11 @@ class CardsColumn:
 
         all_cards = self.state.index.cards(self.current_tab)  # type: ignore[arg-type]
         if self.search_query:
-            cards = [c for c in all_cards if self.search_query in c.title.lower()]
+            # The game's name or the data name in the card id (search "archers" finds Archer Garrison).
+            cards = [
+                c for c in all_cards
+                if self.search_query in c.title.lower() or self.search_query in c.id.replace("_", " ")
+            ]
         else:
             cards = all_cards
 
