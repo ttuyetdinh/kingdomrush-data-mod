@@ -16,7 +16,7 @@ _TENTH = Decimal("0.1")
 ENEMY_MAX = 100
 ENEMY_VALUES: tuple[float, ...] = (0.25,) + tuple(float(n) for n in range(1, ENEMY_MAX + 1))
 TROOP_MIN = -10
-TROOP_MAX = 10
+TROOP_MAX = 100
 # Extra hero skill points and skill tree points are added to the game's own totals.
 EXTRA_POINTS_MAX = 999
 
@@ -97,8 +97,8 @@ def clamp_troop(value: float) -> int:
     return min(TROOP_MAX, max(TROOP_MIN, whole))
 
 
-def step_troop(current: int, direction: int) -> int:
-    return clamp_troop(current + direction)
+def step_troop(current: int, direction: int, shift: bool = False) -> int:
+    return clamp_troop(current + direction * (SHIFT_FACTOR if shift else 1))
 
 
 def clamp_points(value: float) -> int:

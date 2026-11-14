@@ -81,8 +81,8 @@ def test_read_live_validation(harness):
     for bad in ("0.4", "0.5", "1.5", "101", "0", "-1"):
         harness.write_raw("kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = {bad}, troop_delta = 0 }}")
         assert harness.lua(check) == "false", bad
-    # troop delta not a whole number in -10..10
-    for bad in ("1.5", "11", "-11", "'2'"):
+    # troop delta not a whole number in -10..100
+    for bad in ("1.5", "101", "-11", "'2'"):
         harness.write_raw("kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = 1, troop_delta = {bad} }}")
         assert harness.lua(check) == "false", bad
     # the old troop_mult field alone is not enough
@@ -90,7 +90,7 @@ def test_read_live_validation(harness):
     assert harness.lua(check) == "false"
     # every allowed value passes
     for enemy in ("0.25", "1", "2", "10", "10.0000001", "30", "100"):
-        for troop in ("-10", "0", "7", "10"):
+        for troop in ("-10", "0", "7", "10", "100"):
             harness.write_raw(
                 "kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = {enemy}, troop_delta = {troop} }}"
             )
