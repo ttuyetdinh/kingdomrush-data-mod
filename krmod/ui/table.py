@@ -199,13 +199,11 @@ def render_card(
     folded: set[tuple[str, str]],
 ) -> None:
     """Render the quick scale boxes and the level table (cells and Row % boxes) into right.
+    A summary card (All enemies) gets only its quick scale boxes.
 
     on_refresh updates the page chrome (top bar, cards column) after an edit.
     """
-
-    rows = state.rows(card_id)
-    max_levels = max((len(r.cells) for r in rows), default=1)
-
+    summary = state.index.card(card_id).summary
     all_cells: list[CellController] = []
     pct_boxes: list[PctBox] = []
 
@@ -223,7 +221,7 @@ def render_card(
                 "w-full bg-slate-50 border border-slate-200 rounded-lg p-3 gap-2 mb-3 shrink-0"
             ):
                 with ui.row().classes("items-baseline justify-between w-full gap-x-3 gap-y-0"):
-                    ui.label("Quick scale all levels").classes(
+                    ui.label("Quick scale every enemy and boss" if summary else "Quick scale all levels").classes(
                         "text-xs font-semibold text-slate-500 uppercase tracking-wide"
                     )
                     ui.label("0% to 500%, type or use the arrows").classes("text-xs text-slate-400 italic")
@@ -237,9 +235,21 @@ def render_card(
                                     lambda pct, c=cat: state.scale_card(card_id, c, pct),
                                     f"card-pct-{cat.replace(' ', '-').lower()}",
                                     on_mutation,
+                                    is_changed=lambda c=cat: state.card_category_changed(card_id, c),
+                                    reset=lambda c=cat: state.reset_card_category(card_id, c),
                                 )
                             )
+        if summary:
+            ui.label(
+                "Each box sets that kind of value on every enemy and boss to a percentage of the "
+                "game's value, replacing earlier edits of that kind. \"mixed\" means the enemies "
+                "differ; the struck 100% under a box puts them all back to the game's values."
+            ).classes("text-xs text-slate-500")
+            return
 
+    rows = state.rows(card_id)
+    max_levels = max((len(r.cells) for r in rows), default=1)
+    with right:
         scroller = ui.element("div").classes(_SCROLLER)
         with scroller:
             with ui.element("table").classes("min-w-full w-max border-separate border-spacing-0 text-left text-sm"):

@@ -30,11 +30,22 @@ _FIELD = re.compile(r"\{(\w+)(?:\|(\w+))?\}")
 
 @dataclass(frozen=True)
 class Card:
+    """One tile in a tab. A summary card spans many units: it offers Quick scale over all its
+    values but no level table, and it is never the home of a value (see card_of)."""
+
     id: str
     tab: Tab
     title: str
     group: str
     prefix: KeyPath
+    summary: bool = False
+
+
+# Summary card over every enemy and boss value (Enemies tab), listed before the factions.
+ALL_ENEMIES = Card(
+    id="enemies/all", tab="Enemies", title="All enemies", group="All enemies",
+    prefix=("enemies",), summary=True,
+)
 
 
 @dataclass(frozen=True)
@@ -181,6 +192,8 @@ class GroupIndex:
                 idx._numeric.append(p)
             idx._cards.setdefault(card.id, card)
             idx._paths.setdefault(card.id, []).append(p)
+        idx._cards[ALL_ENEMIES.id] = ALL_ENEMIES
+        idx._paths[ALL_ENEMIES.id] = [p for p in tree.leaves if p[0] == ALL_ENEMIES.prefix[0]]
         for paths in idx._paths.values():
             paths.sort(key=_path_key)
         for card in idx._cards.values():

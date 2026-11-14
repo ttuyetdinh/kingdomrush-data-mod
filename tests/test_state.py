@@ -103,6 +103,27 @@ def test_card_categories_and_pct(state):
     assert state.card_pct("towers/archers", "NonExistentCategory") is None
 
 
+def test_all_enemies_scales_every_enemy_and_boss(state):
+    goblin_speed = ("enemies", "orcs", "goblin", "speed")  # 50
+    boss_speed = ("enemies", "lord_blackburn_boss", "speed")  # 12
+    jt_hp = ("enemies", "jt_boss", "hp", 4)  # 11000
+    goblin_hp = ("enemies", "orcs", "goblin", "hp", 1)  # 20
+    assert "All moving speed" in state.card_categories("enemies/all")
+    state.scale_card("enemies/all", "All moving speed", 50)
+    state.scale_card("enemies/all", "All HP", 200)
+    assert (state.current(goblin_speed), state.current(boss_speed)) == (25, 6)
+    assert (state.current(goblin_hp), state.current(jt_hp)) == (40, 22000)
+    assert state.card_pct("enemies/all", "All moving speed") == 50.0
+    # one enemy edited by hand makes the box mixed; the reset puts every speed back
+    state.set_value(goblin_speed, 60)
+    assert state.card_pct("enemies/all", "All moving speed") is None
+    assert state.card_category_changed("enemies/all", "All moving speed")
+    state.reset_card_category("enemies/all", "All moving speed")
+    assert (state.current(goblin_speed), state.current(boss_speed)) == (50, 12)
+    assert not state.card_category_changed("enemies/all", "All moving speed")
+    assert state.current(goblin_hp) == 40  # other kinds keep their edits
+
+
 def test_set_value_validation(state):
     p = ("towers", "archers", "price", 1)
     with pytest.raises(ValueError):

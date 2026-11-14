@@ -53,7 +53,7 @@ OTHER_TAB_BY_ROOT: dict[str, Tab] = {
 OTHER_TAB_DEFAULT: Tab = "Stages"
 
 # Group display order inside a tab; unknown groups sort after these, by name.
-GROUP_ORDER = ("Towers", "Classic towers", "Heroes", "Spells", "Bosses")
+GROUP_ORDER = ("Towers", "Classic towers", "Heroes", "Spells", "All enemies", "Bosses")
 
 
 def is_skill_segment(seg: str | int) -> bool:
