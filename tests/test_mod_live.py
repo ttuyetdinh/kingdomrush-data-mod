@@ -78,7 +78,7 @@ def test_read_live_validation(harness):
     harness.write_raw("kr_mod_live.lua", "return { speed = 0, enemy_mult = 1, troop_delta = 0 }")
     assert harness.lua(check) == "false"
     # enemy mult outside the allowed list
-    for bad in ("0.4", "0.5", "1.5", "11", "0", "-1"):
+    for bad in ("0.4", "0.5", "1.5", "101", "0", "-1"):
         harness.write_raw("kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = {bad}, troop_delta = 0 }}")
         assert harness.lua(check) == "false", bad
     # troop delta not a whole number in -10..10
@@ -89,7 +89,7 @@ def test_read_live_validation(harness):
     harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 1, troop_mult = 1 }")
     assert harness.lua(check) == "false"
     # every allowed value passes
-    for enemy in ("0.25", "1", "2", "10", "10.0000001"):
+    for enemy in ("0.25", "1", "2", "10", "10.0000001", "30", "100"):
         for troop in ("-10", "0", "7", "10"):
             harness.write_raw(
                 "kr_mod_live.lua", f"return {{ speed = 1, enemy_mult = {enemy}, troop_delta = {troop} }}"
@@ -231,7 +231,7 @@ def test_troop_delta_and_enemy_mult_copied_into_live(harness):
     assert harness.lua("return KRMOD.live.troop_delta") == "-3"
     assert harness.lua("return KRMOD.live.enemy_mult") == "0.25"
     # an invalid file leaves the last good values in force
-    harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 11, troop_delta = 5 }")
+    harness.write_raw("kr_mod_live.lua", "return { speed = 1, enemy_mult = 101, troop_delta = 5 }")
     harness.lua("NOW = 2; game:update(0.03)")
     assert harness.lua("return KRMOD.live.troop_delta") == "-3"
     assert harness.lua("return KRMOD.live.enemy_mult") == "0.25"

@@ -252,7 +252,7 @@ def test_live_validation():
         LiveSettings(4),
         LiveSettings(enemy_mult=0.5),
         LiveSettings(enemy_mult=1.5),
-        LiveSettings(enemy_mult=11),
+        LiveSettings(enemy_mult=101),
         LiveSettings(enemy_mult=0),
         LiveSettings(speed=True),
         LiveSettings(enemy_mult=float("nan")),
@@ -274,7 +274,8 @@ def test_live_validation():
         ({"enemy_mult": 1.5, "troop_delta": 2}, 2.0, 2),  # a tie snaps up
         ({"enemy_mult": 0.75, "troop_delta": -3}, 1.0, -3),  # an old slider value
         ({"enemy_mult": 0.3, "troop_delta": 99}, 0.25, 10),
-        ({"enemy_mult": 40, "troop_delta": -99}, 10.0, -10),
+        ({"enemy_mult": 40, "troop_delta": -99}, 40.0, -10),
+        ({"enemy_mult": 250, "troop_delta": 0}, 100.0, 0),
         ({"enemy_mult": 3.0, "troop_delta": 1.5}, 3.0, 2),
         ({"enemy_mult": 1.0, "troop_mult": 2.5}, 1.0, 0),  # legacy troop_mult is dropped
     ],

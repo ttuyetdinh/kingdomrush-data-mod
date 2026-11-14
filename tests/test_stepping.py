@@ -58,15 +58,29 @@ def test_parse_rejects_non_numbers(text):
 
 
 def test_enemy_values_and_steps():
-    assert ENEMY_VALUES == (0.25, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    assert ENEMY_VALUES == (0.25, *range(1, 101))
     assert step_enemy(0.25, 1) == 1
     assert step_enemy(1, -1) == 0.25
     assert step_enemy(0.25, -1) == 0.25
-    assert step_enemy(10, 1) == 10
+    assert step_enemy(10, 1) == 11
+    assert step_enemy(100, 1) == 100
     assert snap_enemy(1.5) == 2
     assert snap_enemy(0.5) == 0.25
     assert snap_enemy(0.7) == 1
-    assert snap_enemy(42) == 10
+    assert snap_enemy(42) == 42
+    assert snap_enemy(500) == 100
+
+
+def test_enemy_shift_steps_jump_to_multiples_of_ten():
+    ups = [0.25]
+    while ups[-1] < 100:
+        ups.append(step_enemy(ups[-1], 1, shift=True))
+    assert ups == [0.25, 1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    assert step_enemy(15, 1, shift=True) == 20
+    assert step_enemy(15, -1, shift=True) == 10
+    assert step_enemy(10, -1, shift=True) == 1
+    assert step_enemy(1, -1, shift=True) == 0.25
+    assert step_enemy(100, 1, shift=True) == 100
 
 
 def test_troop_whole_numbers_and_bounds():
