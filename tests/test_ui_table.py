@@ -272,15 +272,6 @@ async def test_sniper_card_opens_without_error(user):
     await user.should_see("Max range")
 
 
-@pytest.fixture
-def _no_folds():
-    from krmod.ui import table
-
-    table._FOLDED.clear()
-    yield
-    table._FOLDED.clear()
-
-
 BASIC = "cell-towers.archers.basic_attack.cooldown.1"
 SKILL = "cell-towers.archers.skill_a.damage_max.1"
 
@@ -299,7 +290,7 @@ async def test_row_pct_undo_restores_the_whole_row(user):
     assert (pct.value, pct.props.get("original"), pct.props.get("tone")) == ("100%", None, None)
 
 
-async def test_section_title_folds_its_rows(user, _no_folds):
+async def test_section_title_folds_its_rows(user):
     await user.open("/")
     user.find("Archers").click()
     user.find(marker="section-basic_attack").click()
@@ -310,7 +301,7 @@ async def test_section_title_folds_its_rows(user, _no_folds):
     await user.should_see(marker=BASIC)
 
 
-async def test_skills_heading_folds_every_skill_section(user, _no_folds):
+async def test_skills_heading_folds_every_skill_section(user):
     await user.open("/")
     user.find("Archers").click()
     user.find(marker="skills-heading").click()
@@ -321,7 +312,7 @@ async def test_skills_heading_folds_every_skill_section(user, _no_folds):
     await user.should_see(marker=SKILL)
 
 
-async def test_folds_are_kept_when_switching_cards(user, _no_folds):
+async def test_folds_are_kept_when_switching_cards(user):
     await user.open("/")
     user.find("Archers").click()
     user.find(marker="section-basic_attack").click()

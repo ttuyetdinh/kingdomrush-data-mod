@@ -36,10 +36,8 @@ if (el) {
 }
 """
 
-# Folded sections, remembered until the app closes: (card id, section key). The key is a
-# row group, or SKILLS_KEY for the heading that folds all skill sections of a card.
+# A section key is a row group, or SKILLS_KEY for the heading that folds all skill sections.
 SKILLS_KEY = "*skills*"
-_FOLDED: set[tuple[str, str]] = set()
 _OPEN, _SHUT = "\u25be", "\u25b8"
 
 
@@ -56,14 +54,15 @@ class _Sections:
     the Skills heading hides every skill section of the card.
     """
 
-    def __init__(self, card_id: str, levels: int) -> None:
+    def __init__(self, card_id: str, levels: int, folded: set[tuple[str, str]]) -> None:
         self.card_id = card_id
         self.levels = levels
+        self._folded = folded  # (card id, section key), owned by the page
         self._rows: list[tuple[ui.element, str, bool]] = []  # row, group, is skill
         self._headers: list[tuple[ui.element, ui.label, str, bool]] = []  # row, arrow, key, is skill
 
     def folded(self, key: str) -> bool:
-        return (self.card_id, key) in _FOLDED
+        return (self.card_id, key) in self._folded
 
     def header(self, key: str, text: str, is_skill: bool) -> None:
         """A clickable title row: a row group, or SKILLS_KEY for the Skills heading."""
@@ -73,7 +72,7 @@ class _Sections:
             else "bg-slate-100 border-t border-b border-slate-200 py-1"
         )
         tr = ui.element("tr").classes("cursor-pointer select-none")
-        tr.mark("skills-heading" if heading else f"section-{key}")
+        tr.mark("skills-heading" if heading else "section-" + key.replace(" ", "-").replace(".", "-"))
         with tr:
             with ui.element("td").classes(
                 f"{grp} px-3 font-bold text-xs uppercase tracking-wider text-slate-600 {_PIN_L}"
@@ -90,7 +89,7 @@ class _Sections:
         self._rows.append((tr, group, is_skill))
 
     def toggle(self, key: str) -> None:
-        _FOLDED.symmetric_difference_update({(self.card_id, key)})
+        self._folded.symmetric_difference_update({(self.card_id, key)})
         self.apply()
 
     def _hidden(self, group: str, is_skill: bool, parents_only: bool) -> bool:
@@ -192,7 +191,13 @@ def _read_only_text(state: AppState, p: KeyPath, row: StatRow) -> str:
     return ""
 
 
-def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Callable[[], None]) -> None:
+def render_card(
+    state: AppState,
+    card_id: str,
+    right: ui.element,
+    on_refresh: Callable[[], None],
+    folded: set[tuple[str, str]],
+) -> None:
     """Render the quick scale boxes and the level table (cells and Row % boxes) into right.
 
     on_refresh updates the page chrome (top bar, cards column) after an edit.
@@ -252,7 +257,7 @@ def render_card(state: AppState, card_id: str, right: ui.element, on_refresh: Ca
                             ui.label("Row %")
 
                 # Body:
-                sections = _Sections(card_id, max_levels)
+                sections = _Sections(card_id, max_levels, folded)
                 with ui.element("tbody"):
                     last_group: str | None = None
                     in_skills = False
