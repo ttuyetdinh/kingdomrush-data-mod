@@ -1,5 +1,7 @@
 -- KrGenesis enemy count multiplier module.
 -- Wraps systems.wave_spawn_tsv.cmd_fns.spawn to scale wave spawns by KRMOD.live.enemy_mult.
+-- Extra copies walk side by side: each row fills every lane of the road (the original's lane
+-- first), and the next row follows EXTRA_SPACING seconds later.
 local M = {}
 
 M.EXTRA_SPACING = 0.25
@@ -76,6 +78,41 @@ function M.plan(K, mult, kind, key)
   return n
 end
 
+-- Lanes of the road an entry spawns on (the game's sub-paths of P.paths[pi], at least 1) and the
+-- lane the original takes: its fixed lane, or a random one for "*" as the game itself would pick.
+function M.lanes(P, o)
+  local path = type(P) == "table" and type(P.paths) == "table" and P.paths[o.pi] or nil
+  local lanes = type(path) == "table" and #path or 1
+  if lanes < 1 then lanes = 1 end
+  local base = o.spi
+  if base == "*" then
+    base = math.random(lanes)
+  elseif type(base) ~= "number" or base < 1 or base > lanes or base ~= math.floor(base) then
+    return 1, nil  -- unknown lane: keep the entry as it is and spawn copies one behind another
+  end
+  return lanes, base
+end
+
+-- Spawn one row of copies of o at the same moment, one per given lane, without touching the
+-- wave's spawn counter or gem carriers.
+local function spawn_row(original, store, cmd, o, lanes_in_row, ...)
+  local row_cmd = shallow_copy(cmd)
+  row_cmd.wait_time = 0
+  row_cmd.spawns = {}
+  for _, lane in ipairs(lanes_in_row) do
+    local copy = shallow_copy(o)
+    if lane then copy.spi = lane end
+    row_cmd.spawns[#row_cmd.spawns + 1] = copy
+  end
+  local orig_gems_idx = store.gems_spawn_idx
+  local orig_spawn_idx = store.current_spawn_idx
+  store.gems_spawn_idx = {}
+  local ok, err = pcall(original, store, row_cmd, ...)
+  store.gems_spawn_idx = orig_gems_idx
+  store.current_spawn_idx = orig_spawn_idx
+  if not ok then error(err) end
+end
+
 local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
   if store.force_next_wave then return end
 
@@ -95,6 +132,10 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
   local ok_u, utils = pcall(require, "utils")
   if ok_u then U = utils end
 
+  local P = nil
+  local ok_p, pdb = pcall(require, "path_db")
+  if ok_p then P = pdb end
+
   for _, o in ipairs(cmd.spawns) do
     if store.force_next_wave then break end
 
@@ -107,8 +148,14 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
         store.current_spawn_idx = (store.current_spawn_idx or 0) + 1
       end
     elseif n >= 1 then
+      local lanes, base = M.lanes(P, o)
+      local first = o
+      if n > 1 and base then
+        first = shallow_copy(o)
+        first.spi = base
+      end
       local sub_cmd = shallow_copy(cmd)
-      sub_cmd.spawns = { o }
+      sub_cmd.spawns = { first }
       sub_cmd.wait_time = 0
 
       if kind == "carrier" then
@@ -121,26 +168,23 @@ local function handle_spawn(original, K, ctx, store, cmd, mult, ...)
         original(store, sub_cmd, ...)
       end
 
-      if store.force_next_wave then break end
-
-      for j = 1, n - 1 do
+      -- Copy k (1 .. n-1) takes lane base+k, wrapping; copies of one row spawn together.
+      local row, row_lanes = 0, {}
+      for k = 1, n - 1 do
         if store.force_next_wave then break end
-        if U and U.y_wait then
-          U.y_wait(store, M.EXTRA_SPACING, function(st) return st.force_next_wave end)
+        local k_row = math.floor(k / lanes)
+        if k_row ~= row then
+          if #row_lanes > 0 then spawn_row(original, store, cmd, o, row_lanes, ...) end
+          row, row_lanes = k_row, {}
+          if U and U.y_wait then
+            U.y_wait(store, M.EXTRA_SPACING, function(st) return st.force_next_wave end)
+          end
+          if store.force_next_wave then break end
         end
-        if store.force_next_wave then break end
-
-        local extra_cmd = shallow_copy(cmd)
-        extra_cmd.spawns = { o }
-        extra_cmd.wait_time = 0
-
-        local orig_gems_idx = store.gems_spawn_idx
-        local orig_spawn_idx = store.current_spawn_idx
-        store.gems_spawn_idx = {}
-        local ok, err = pcall(original, store, extra_cmd, ...)
-        store.gems_spawn_idx = orig_gems_idx
-        store.current_spawn_idx = orig_spawn_idx
-        if not ok then error(err) end
+        row_lanes[#row_lanes + 1] = base and ((base - 1 + k) % lanes) + 1 or false
+      end
+      if #row_lanes > 0 and not store.force_next_wave then
+        spawn_row(original, store, cmd, o, row_lanes, ...)
       end
     end
   end
